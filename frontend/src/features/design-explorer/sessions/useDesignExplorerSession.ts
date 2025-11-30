@@ -4,6 +4,7 @@ import { MOCK_SCRAPED_IMAGES } from "../data/mock-data"
 import {
   appendChat,
   createSession,
+  addAssetToView,
   fetchSessions,
   scrapeImmoscout,
   uploadAsset as uploadAssetRequest,
