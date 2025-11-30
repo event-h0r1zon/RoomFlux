@@ -29,6 +29,9 @@ export function DesignExplorerExperience() {
     sendChatMessage,
     isChatSubmitting,
     timeline,
+    savedSessions,
+    isSessionsLoading,
+    resumeSession,
   } = useDesignExplorerSession()
 
   return (
@@ -57,6 +60,9 @@ export function DesignExplorerExperience() {
             isScraping={isScraping}
             onPropertyUrlChange={(value) => setPropertyUrl(value)}
             onStart={startScrape}
+            previousSessions={savedSessions}
+            isLoadingSessions={isSessionsLoading}
+            onResumeSession={resumeSession}
           />
         )}
 

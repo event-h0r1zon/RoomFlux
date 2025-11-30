@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import images
+from app.routers import images, sessions
 from dotenv import load_dotenv
 import os
 
@@ -24,6 +24,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(images.router, prefix="/api/v1/images", tags=["images"])
+app.include_router(sessions.router, prefix="/api/v1", tags=["sessions"])
 
 @app.get("/")
 async def root():

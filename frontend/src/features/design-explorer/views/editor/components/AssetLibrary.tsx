@@ -20,7 +20,7 @@ import type { AssetItem } from "../../../lib/types"
 interface AssetLibraryProps {
   assets: AssetItem[]
   dataTransferKey: string
-  onUploadAsset: (asset: Omit<AssetItem, "id">) => void
+  onUploadAsset: (input: { name: string; file: File }) => Promise<void>
   onUpdateAsset: (
     assetId: string,
     updates: Partial<Omit<AssetItem, "id">>
@@ -36,6 +36,8 @@ export function AssetLibrary({
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [assetName, setAssetName] = useState("")
   const [preview, setPreview] = useState<string | null>(null)
+  const [assetFile, setAssetFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null)
   const [editName, setEditName] = useState("")
@@ -44,6 +46,7 @@ export function AssetLibrary({
   const resetDialog = () => {
     setAssetName("")
     setPreview(null)
+    setAssetFile(null)
   }
 
   const closeEditDialog = () => {
@@ -57,9 +60,11 @@ export function AssetLibrary({
     const file = event.target.files?.[0]
     if (!file) {
       setPreview(null)
+      setAssetFile(null)
       return
     }
 
+    setAssetFile(file)
     const reader = new FileReader()
     reader.onloadend = () => {
       setPreview(reader.result as string)
@@ -67,13 +72,20 @@ export function AssetLibrary({
     reader.readAsDataURL(file)
   }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const trimmed = assetName.trim()
-    if (!trimmed || !preview) return
-    onUploadAsset({ name: trimmed, imageUrl: preview })
-    resetDialog()
-    setIsDialogOpen(false)
+    if (!trimmed || !preview || !assetFile) return
+    setIsUploading(true)
+    try {
+      await onUploadAsset({ name: trimmed, file: assetFile })
+      resetDialog()
+      setIsDialogOpen(false)
+    } catch (error) {
+      console.error("Failed to upload asset", error)
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   const handleEditFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -171,8 +183,11 @@ export function AssetLibrary({
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={!assetName.trim() || !preview}>
-                  Save asset
+                <Button
+                  type="submit"
+                  disabled={!assetName.trim() || !preview || isUploading}
+                >
+                  {isUploading ? "Uploading" : "Save asset"}
                 </Button>
               </DialogFooter>
             </form>

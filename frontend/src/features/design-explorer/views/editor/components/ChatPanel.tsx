@@ -35,10 +35,6 @@ export function ChatPanel({ messages, onSend, isSending }: ChatPanelProps) {
     setInput("")
   }
 
-  const instructionMessages = messages.filter(
-    (message) => message.role !== "assistant"
-  )
-
   return (
     <Card className="flex h-full flex-col">
       <CardHeader className="py-4">
@@ -52,14 +48,15 @@ export function ChatPanel({ messages, onSend, isSending }: ChatPanelProps) {
       <CardContent className="flex-1 overflow-hidden px-0 pb-0 pt-4">
         <ScrollArea className="h-48 px-6">
           <div className="space-y-4">
-            {instructionMessages.length === 0 && (
+            {messages.length === 0 && (
               <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
                 <MessageSquareText className="size-4" />
                 No design directions yet.
               </div>
             )}
-            {instructionMessages.map((message) => {
+            {messages.map((message) => {
               const isAsset = message.role === "asset"
+              const timestamp = new Date(message.createdAt)
               return (
                 <div
                   key={message.id}
@@ -77,12 +74,14 @@ export function ChatPanel({ messages, onSend, isSending }: ChatPanelProps) {
                     <p className="font-medium">
                       {isAsset ? message.assetName ?? "Asset" : "You"}
                     </p>
-                    <p className="text-muted-foreground text-xs">
-                      {message.createdAt.toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
+                    {!Number.isNaN(timestamp.getTime()) && (
+                      <p className="text-muted-foreground text-xs">
+                        {timestamp.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    )}
                     <p className="mt-1 leading-relaxed">
                       {isAsset
                         ? `Placement note: ${message.content}`

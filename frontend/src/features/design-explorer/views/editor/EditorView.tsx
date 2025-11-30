@@ -38,7 +38,7 @@ interface EditorViewProps {
   assets: AssetItem[]
   onBack: () => void
   onAssetDrop: (asset: AssetItem, instructions: string) => Promise<void>
-  onUploadAsset: (asset: Omit<AssetItem, "id">) => void
+  onUploadAsset: (input: { name: string; file: File }) => Promise<void>
   onUpdateAsset: (
     assetId: string,
     updates: Partial<Omit<AssetItem, "id">>

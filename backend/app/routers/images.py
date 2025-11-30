@@ -2,6 +2,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.flux_service import flux_service
 from app.services.supabase_service import supabase_service
 from app.services.scrape_service import scrape_service
+from app.services.image_store import upload_remote_image
 from pydantic import BaseModel
 import uuid
 import httpx
@@ -41,8 +42,10 @@ async def generate_image(request: GenerateRequest):
         extension = "jpg" if "jpeg" in content_type else "png"
         file_name = f"{uuid.uuid4()}.{extension}"
         
-        supabase_service.upload_image(image_data, file_name, content_type=content_type)
-        public_url = supabase_service.get_public_url(file_name)
+        stored_path = supabase_service.upload_image(
+            image_data, file_name, content_type=content_type, folder="generated"
+        )
+        public_url = supabase_service.get_public_url(stored_path)
         
         return {"status": "success", "data": {"url": public_url, "original_url": image_url}}
     except Exception as e:
@@ -61,10 +64,18 @@ async def upload_image(file: UploadFile = File(...)):
         file_extension = file.filename.split(".")[-1] if "." in file.filename else "png"
         file_name = f"{uuid.uuid4()}.{file_extension}"
         
-        response = supabase_service.upload_image(contents, file_name, content_type=file.content_type)
-        public_url = supabase_service.get_public_url(file_name)
-        
-        return {"status": "success", "file_path": file_name, "public_url": public_url}
+        stored_path = supabase_service.upload_image(
+            contents,
+            file_name,
+            content_type=file.content_type or "image/png",
+            folder="uploads",
+        )
+        public_url = supabase_service.get_public_url(stored_path)
+        return {
+            "status": "success",
+            "file_path": stored_path,
+            "public_url": public_url,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -91,8 +102,22 @@ async def scrape_listing(listing: ListingUrl):
             raise HTTPException(status_code=404, detail="No items scraped from the provided URL")
 
         image_urls = scrape_service.get_image_urls(scraped_items)
+        if not image_urls:
+            raise HTTPException(status_code=404, detail="No images returned from listing")
 
-        return {"status": "success", "data": image_urls}
+        stored_images = []
+        for index, image_url in enumerate(image_urls):
+            folder = f"scraped/{uuid.uuid4()}/{index}"
+            public_url, storage_path = await upload_remote_image(image_url, folder=folder)
+            stored_images.append(
+                {
+                    "source_url": image_url,
+                    "public_url": public_url,
+                    "storage_path": storage_path,
+                }
+            )
+
+        return {"status": "success", "data": stored_images}
 
 
     except Exception as e:

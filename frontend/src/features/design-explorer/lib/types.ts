@@ -7,6 +7,7 @@ export type ScrapedImage = {
   description: string
   imageUrl: string
   tags: string[]
+  viewId?: string
 }
 
 export type AssetItem = {
@@ -17,8 +18,23 @@ export type AssetItem = {
 
 export type ChatMessage = {
   id: string
-  role: "user" | "assistant" | "asset"
+  role: "user" | "asset"
   content: string
-  createdAt: Date
+  createdAt: string
   assetName?: string
+  assetUrl?: string
+}
+
+export type SavedSessionView = {
+  id: string
+  originalImage: string | null
+  editedImages: string[]
+  chatHistory: ChatMessage[]
+  assets: AssetItem[]
+}
+
+export type SavedSession = {
+  id: string
+  workDate?: string | null
+  views: SavedSessionView[]
 }

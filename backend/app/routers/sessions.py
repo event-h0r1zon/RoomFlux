@@ -8,6 +8,8 @@ from uuid import uuid4
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field, HttpUrl
 
+from app.services.image_store import upload_remote_image
+from app.services.scrape_service import scrape_service
 from app.services.supabase_service import supabase_service
 
 router = APIRouter()
@@ -31,7 +33,7 @@ class ChatEntryPayload(BaseModel):
   asset_url: Optional[str] = None
 
 
-def _persist_image(raw_value: Optional[str], *, folder: str) -> Optional[str]:
+async def _persist_image(raw_value: Optional[str], *, folder: str) -> Optional[str]:
   if not raw_value:
     return None
 
@@ -52,6 +54,10 @@ def _persist_image(raw_value: Optional[str], *, folder: str) -> Optional[str]:
     except Exception as exc:  # pragma: no cover - defensive
       raise HTTPException(status_code=400, detail=f"Invalid image payload: {exc}")
 
+  if raw_value.startswith("http://") or raw_value.startswith("https://"):
+    stored_url, _ = await upload_remote_image(raw_value, folder=folder)
+    return stored_url
+
   return raw_value
 
 
@@ -59,20 +65,31 @@ def _persist_image(raw_value: Optional[str], *, folder: str) -> Optional[str]:
 async def create_session(payload: CreateSessionRequest):
   """Create a new workspace session and seed it with initial views."""
 
+  views_payload = payload.views
+  if not views_payload:
+    scraped_items = await scrape_service.scrape_listing(str(payload.property_url))
+    image_urls = scrape_service.get_image_urls(scraped_items)
+    if not image_urls:
+      raise HTTPException(status_code=404, detail="No images found for the provided listing")
+    views_payload = [
+      ViewPayload(original_image=url, edited_images=[], chat_history=[])
+      for url in image_urls
+    ]
+
   session_id = supabase_service.create_session()
 
   prepared_views: List[Dict[str, Any]] = []
-  for idx, view in enumerate(payload.views):
+  for idx, view in enumerate(views_payload):
     folder_prefix = f"views/{session_id}/{idx}"
+    original_image = await _persist_image(view.original_image, folder=folder_prefix)
+    edited_images: List[str] = []
+    for image in view.edited_images:
+      stored = await _persist_image(image, folder=f"{folder_prefix}/edited")
+      edited_images.append(stored or image)
     prepared_views.append(
       {
-        "original_image": _persist_image(view.original_image, folder=folder_prefix)
-        if view.original_image
-        else None,
-        "edited_images": [
-          _persist_image(image, folder=f"{folder_prefix}/edited") or image
-          for image in view.edited_images
-        ],
+        "original_image": original_image,
+        "edited_images": edited_images,
         "chat_history": view.chat_history,
       }
     )

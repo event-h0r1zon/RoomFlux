@@ -1,15 +1,18 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { MOCK_SCRAPED_IMAGES } from "../data/mock-data"
 import {
-  generateWithAsset,
-  generateWithPrompt,
+  appendChat,
+  createSession,
+  fetchSessions,
   scrapeImmoscout,
+  uploadAsset as uploadAssetRequest,
 } from "../lib/api"
 import type {
   AssetItem,
   ChatMessage,
   DesignExplorerView,
+  SavedSession,
   ScrapedImage,
 } from "../lib/types"
 
@@ -18,6 +21,61 @@ const makeId = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2)
 
+type ChatEntryRecord = Record<string, unknown>
+
+type SessionViewApiRecord = {
+  id: string
+  original_image?: string | null
+  edited_images?: string[]
+  chat_history?: ChatEntryRecord[]
+  asset_library?: Array<{ id: string; name: string; url: string }>
+}
+
+type SessionApiRecord = {
+  id: string
+  work_date?: string
+  views?: SessionViewApiRecord[]
+}
+
+const normalizeChatEntry = (entry: ChatEntryRecord): ChatMessage => {
+  const createdAt =
+    typeof entry.createdAt === "string"
+      ? entry.createdAt
+      : typeof entry.created_at === "string"
+        ? entry.created_at
+        : new Date().toISOString()
+
+  const assetName =
+    typeof entry.assetName === "string"
+      ? entry.assetName
+      : typeof entry.asset_name === "string"
+        ? entry.asset_name
+        : undefined
+
+  const assetUrl =
+    typeof entry.assetUrl === "string"
+      ? entry.assetUrl
+      : typeof entry.asset_url === "string"
+        ? entry.asset_url
+        : undefined
+
+  return {
+    id: typeof entry.id === "string" ? entry.id : makeId(),
+    role: entry.role === "asset" ? "asset" : "user",
+    content:
+      typeof entry.content === "string"
+        ? entry.content
+        : String(entry.content ?? ""),
+    createdAt,
+    assetName,
+    assetUrl,
+  }
+}
+
+const normalizeChatHistory = (
+  entries: ChatEntryRecord[] | undefined
+): ChatMessage[] => (entries ?? []).map(normalizeChatEntry)
+
 export function useDesignExplorerSession() {
   const [view, setView] = useState<DesignExplorerView>("onboarding")
   const [propertyUrl, setPropertyUrl] = useState("")
@@ -25,10 +83,55 @@ export function useDesignExplorerSession() {
   const [selectedImage, setSelectedImage] = useState<ScrapedImage | null>(null)
   const [isScraping, setIsScraping] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
+  const [viewLookup, setViewLookup] = useState<Record<string, string>>({})
+  const [viewChats, setViewChats] = useState<Record<string, ChatMessage[]>>({})
+  const [viewAssets, setViewAssets] = useState<Record<string, AssetItem[]>>({})
   const [isChatSubmitting, setIsChatSubmitting] = useState(false)
   const [timeline, setTimeline] = useState<string[]>([])
-  const [assets, setAssets] = useState<AssetItem[]>([])
+  const [savedSessions, setSavedSessions] = useState<SavedSession[]>([])
+  const [isSessionsLoading, setIsSessionsLoading] = useState(false)
+
+  const normalizeSavedView = useCallback(
+    (viewRecord: SessionViewApiRecord): SavedSession["views"][number] => {
+      const assets = (viewRecord.asset_library ?? []).map((asset) => ({
+        id: asset.id,
+        name: asset.name,
+        imageUrl: asset.url,
+      }))
+
+      return {
+        id: viewRecord.id,
+        originalImage: viewRecord.original_image ?? null,
+        editedImages: viewRecord.edited_images ?? [],
+        chatHistory: normalizeChatHistory(viewRecord.chat_history),
+        assets,
+      }
+    },
+    []
+  )
+
+  const fetchSavedSessions = useCallback(async () => {
+    setIsSessionsLoading(true)
+    try {
+      const response = await fetchSessions(6)
+      const normalized: SavedSession[] = (response.sessions ?? []).map(
+        (session: SessionApiRecord) => ({
+          id: session.id,
+          workDate: session.work_date ?? null,
+          views: (session.views ?? []).map(normalizeSavedView),
+        })
+      )
+      setSavedSessions(normalized)
+    } catch (error) {
+      console.error("Failed to load previous sessions", error)
+    } finally {
+      setIsSessionsLoading(false)
+    }
+  }, [normalizeSavedView])
+
+  useEffect(() => {
+    fetchSavedSessions()
+  }, [fetchSavedSessions])
 
   const startScrape = useCallback(async () => {
     if (!propertyUrl.trim()) {
@@ -41,16 +144,39 @@ export function useDesignExplorerSession() {
 
     try {
       const result = await scrapeImmoscout(propertyUrl)
-      setImages(result)
+      const session = await createSession({
+        propertyUrl,
+        views: result.map((image) => ({
+          original_image: image.imageUrl,
+          chat_history: [],
+          edited_images: [],
+        })),
+      })
+
+      const lookup: Record<string, string> = {}
+      const enhancedImages = result.map((image, index) => {
+        const viewRecord = session.views[index]
+        if (viewRecord?.id) {
+          lookup[image.id] = viewRecord.id
+          return { ...image, viewId: viewRecord.id }
+        }
+        return image
+      })
+
+      setViewLookup(lookup)
+      setImages(enhancedImages)
+      setViewChats({})
+      setViewAssets({})
       setView("gallery")
       setStatus(null)
+      fetchSavedSessions()
     } catch (error) {
       console.error(error)
       setStatus("Could not fetch the listing. Please try again.")
     } finally {
       setIsScraping(false)
     }
-  }, [propertyUrl])
+  }, [fetchSavedSessions, propertyUrl])
 
   const selectImage = useCallback((image: ScrapedImage) => {
     setSelectedImage(image)
@@ -63,88 +189,197 @@ export function useDesignExplorerSession() {
     setView("onboarding")
     setPropertyUrl("")
     setSelectedImage(null)
-    setChatHistory([])
+    setViewLookup({})
+    setViewChats({})
+    setViewAssets({})
+    setImages(MOCK_SCRAPED_IMAGES)
     setTimeline([])
-    setAssets([])
     setStatus(null)
   }, [])
+
+  const resumeSession = useCallback(
+    (sessionId: string) => {
+      const session = savedSessions.find((item) => item.id === sessionId)
+      if (!session) {
+        return
+      }
+
+      const lookup: Record<string, string> = {}
+      const reconstructed: ScrapedImage[] = []
+
+      session.views.forEach((viewRecord, index) => {
+        if (!viewRecord.originalImage) {
+          return
+        }
+        const imageId = viewRecord.id || `${session.id}-view-${index}`
+        lookup[imageId] = viewRecord.id
+        reconstructed.push({
+          id: imageId,
+          title: `Session view ${index + 1}`,
+          roomType: "Imported",
+          description: "Loaded from saved session",
+          imageUrl: viewRecord.originalImage,
+          tags: ["saved"],
+          viewId: viewRecord.id,
+        })
+      })
+
+      if (reconstructed.length === 0) {
+        setStatus("Selected session has no reference imagery yet.")
+        return
+      }
+
+      const chatsMap: Record<string, ChatMessage[]> = {}
+      const assetsMap: Record<string, AssetItem[]> = {}
+      session.views.forEach((viewRecord) => {
+        if (!viewRecord.id) return
+        chatsMap[viewRecord.id] = viewRecord.chatHistory
+        assetsMap[viewRecord.id] = viewRecord.assets
+      })
+
+      setImages(reconstructed)
+      setSelectedImage(null)
+      setViewLookup(lookup)
+      setViewChats(chatsMap)
+      setViewAssets(assetsMap)
+      setTimeline([])
+      setView("gallery")
+      setStatus(null)
+    },
+    [savedSessions]
+  )
 
   const captureTimeline = useCallback((entry: string) => {
     setTimeline((prev) => [entry, ...prev].slice(0, 6))
   }, [])
 
+  const resolveViewId = useCallback(() => {
+    if (!selectedImage) return null
+    return selectedImage.viewId ?? viewLookup[selectedImage.id] ?? null
+  }, [selectedImage, viewLookup])
+
   const handleAssetDrop = useCallback(
     async (asset: AssetItem, instructions: string) => {
-      if (!selectedImage || !instructions) return
-      await generateWithAsset(selectedImage, asset.id, instructions)
-      captureTimeline(
-        `${asset.name} queued · "${instructions.substring(0, 36)}"`
-      )
-      const assetMessage: ChatMessage = {
-        id: makeId(),
-        role: "asset",
-        content: instructions,
-        createdAt: new Date(),
-        assetName: asset.name,
+      const viewId = resolveViewId()
+      if (!viewId || !instructions) return
+
+      try {
+        const response = await appendChat(viewId, {
+          role: "asset",
+          message: instructions,
+          assetName: asset.name,
+          assetUrl: asset.imageUrl,
+        })
+        const history = normalizeChatHistory(response.chat_history)
+        setViewChats((prev) => ({ ...prev, [viewId]: history }))
+        captureTimeline(
+          `${asset.name} queued · "${instructions.substring(0, 36)}"`
+        )
+      } catch (error) {
+        console.error("Failed to append asset placement", error)
       }
-      setChatHistory((prev) => [...prev, assetMessage])
     },
-    [captureTimeline, selectedImage]
+    [captureTimeline, resolveViewId]
   )
 
-  const addAsset = useCallback((asset: Omit<AssetItem, "id">) => {
-    setAssets((prev) => [{ id: makeId(), ...asset }, ...prev])
-    captureTimeline(`Asset added · ${asset.name}`)
-  }, [captureTimeline])
+  const uploadAsset = useCallback(
+    async (input: { name: string; file: File }) => {
+      const viewId = resolveViewId()
+      if (!viewId) return
+
+      try {
+        const response = await uploadAssetRequest(viewId, {
+          name: input.name,
+          file: input.file,
+        })
+
+        const assetRecord: AssetItem = {
+          id: response.asset.id,
+          name: response.asset.name,
+          imageUrl: response.public_url,
+        }
+
+        setViewAssets((prev) => ({
+          ...prev,
+          [viewId]: [assetRecord, ...(prev[viewId] ?? [])],
+        }))
+
+        if (response.chat_entry) {
+          const entry = normalizeChatEntry(response.chat_entry)
+          setViewChats((prev) => ({
+            ...prev,
+            [viewId]: [...(prev[viewId] ?? []), entry],
+          }))
+        }
+
+        captureTimeline(`Asset added · ${assetRecord.name}`)
+      } catch (error) {
+        console.error("Failed to upload asset", error)
+        throw error
+      }
+    },
+    [captureTimeline, resolveViewId]
+  )
 
   const updateAsset = useCallback(
     (assetId: string, updates: Partial<Omit<AssetItem, "id">>) => {
+      const viewId = resolveViewId()
+      if (!viewId) return
+
       let updatedName: string | null = null
-      setAssets((prev) =>
-        prev.map((asset) => {
+      setViewAssets((prev) => {
+        const list = prev[viewId] ?? []
+        const nextList = list.map((asset) => {
           if (asset.id !== assetId) return asset
           const next = { ...asset, ...updates }
           updatedName = next.name
           return next
         })
-      )
+        return { ...prev, [viewId]: nextList }
+      })
+
       if (updatedName) {
         captureTimeline(`Asset updated · ${updatedName}`)
       }
     },
-    [captureTimeline]
+    [captureTimeline, resolveViewId]
   )
 
   const sendChatMessage = useCallback(
     async (text: string) => {
-      if (!selectedImage) return
+      const viewId = resolveViewId()
+      if (!viewId) return
       const trimmed = text.trim()
       if (!trimmed) return
-
-      const userMessage: ChatMessage = {
-        id: makeId(),
-        role: "user",
-        content: trimmed,
-        createdAt: new Date(),
-      }
-      setChatHistory((prev) => [...prev, userMessage])
       setIsChatSubmitting(true)
 
       try {
-        const assistantContent = await generateWithPrompt(selectedImage, trimmed)
-        const assistantMessage: ChatMessage = {
-          id: makeId(),
-          role: "assistant",
-          content: assistantContent,
-          createdAt: new Date(),
-        }
-        setChatHistory((prev) => [...prev, assistantMessage])
+        const response = await appendChat(viewId, {
+          role: "user",
+          message: trimmed,
+        })
+        const history = normalizeChatHistory(response.chat_history)
+        setViewChats((prev) => ({ ...prev, [viewId]: history }))
         captureTimeline(`Prompt sent · "${trimmed.substring(0, 36)}"`)
+      } catch (error) {
+        console.error("Failed to append chat", error)
       } finally {
         setIsChatSubmitting(false)
       }
     },
-    [captureTimeline, selectedImage]
+    [captureTimeline, resolveViewId]
+  )
+
+  const activeViewId = resolveViewId()
+
+  const assets = useMemo(
+    () => (activeViewId ? viewAssets[activeViewId] ?? [] : []),
+    [activeViewId, viewAssets]
+  )
+
+  const chatHistory = useMemo(
+    () => (activeViewId ? viewChats[activeViewId] ?? [] : []),
+    [activeViewId, viewChats]
   )
 
   return {
@@ -161,11 +396,14 @@ export function useDesignExplorerSession() {
     resetExperience,
     assets,
     handleAssetDrop,
-    addAsset,
+    addAsset: uploadAsset,
     updateAsset,
     chatHistory,
     sendChatMessage,
     isChatSubmitting,
     timeline,
+    savedSessions,
+    isSessionsLoading,
+    resumeSession,
   }
 }
