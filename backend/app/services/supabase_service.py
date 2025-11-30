@@ -178,6 +178,25 @@ class SupabaseService:
         )
         return response.data if response.data else None
 
+    def update_asset_record(self, asset_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        if not updates:
+            record = self.get_asset_record(asset_id)
+            if not record:
+                raise ValueError("Asset not found")
+            return record
+
+        (
+            self.client.table("asset_library")
+            .update(updates)
+            .eq("id", asset_id)
+            .execute()
+        )
+
+        record = self.get_asset_record(asset_id)
+        if not record:
+            raise ValueError("Asset not found")
+        return record
+
     def delete_asset_record(self, asset_id: str) -> None:
         (
             self.client.table("asset_library")

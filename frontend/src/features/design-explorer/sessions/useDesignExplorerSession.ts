@@ -8,6 +8,7 @@ import {
   fetchSessions,
   scrapeImmoscout,
   uploadAsset as uploadAssetRequest,
+  updateAsset as updateAssetRequest,
   updateViewImage,
   revertViewImage,
   deleteAsset as deleteAssetRequest,
@@ -586,14 +587,6 @@ export function useDesignExplorerSession() {
           [viewId]: [assetRecord, ...(prev[viewId] ?? [])],
         }))
 
-        if (response.chat_entry) {
-          const entry = normalizeChatEntry(response.chat_entry)
-          setViewChats((prev) => ({
-            ...prev,
-            [viewId]: [...(prev[viewId] ?? []), entry],
-          }))
-        }
-
         captureTimeline(`Asset added · ${assetRecord.name}`)
       } catch (error) {
         console.error("Failed to upload asset", error)
@@ -604,24 +597,31 @@ export function useDesignExplorerSession() {
   )
 
   const updateAsset = useCallback(
-    (assetId: string, updates: Partial<Omit<AssetItem, "id">>) => {
+    async (assetId: string, updates: { name?: string; file?: File }) => {
       const viewId = resolveViewId()
       if (!viewId) return
+      if (!updates.name && !updates.file) return
 
-      let updatedName: string | null = null
-      setViewAssets((prev) => {
-        const list = prev[viewId] ?? []
-        const nextList = list.map((asset) => {
-          if (asset.id !== assetId) return asset
-          const next = { ...asset, ...updates }
-          updatedName = next.name
-          return next
+      try {
+        const response = await updateAssetRequest(viewId, assetId, updates)
+        const assetRecord: AssetItem = {
+          id: response.asset.id,
+          name: response.asset.name,
+          imageUrl: response.asset.url,
+        }
+
+        setViewAssets((prev) => {
+          const list = prev[viewId] ?? []
+          const nextList = list.map((asset) =>
+            asset.id === assetId ? assetRecord : asset
+          )
+          return { ...prev, [viewId]: nextList }
         })
-        return { ...prev, [viewId]: nextList }
-      })
 
-      if (updatedName) {
-        captureTimeline(`Asset updated · ${updatedName}`)
+        captureTimeline(`Asset updated · ${assetRecord.name}`)
+      } catch (error) {
+        console.error("Failed to update asset", error)
+        throw error
       }
     },
     [captureTimeline, resolveViewId]

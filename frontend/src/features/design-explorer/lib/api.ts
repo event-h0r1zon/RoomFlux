@@ -132,7 +132,6 @@ export async function appendChat(
 type UploadAssetResponse = {
   asset: { id: string; name: string; url: string; view_id: string }
   public_url: string
-  chat_entry?: Record<string, unknown>
 }
 
 export async function uploadAsset(
@@ -165,6 +164,31 @@ export async function deleteAsset(viewId: string, assetId: string): Promise<Dele
   })
 
   return withJson<DeleteAssetResponse>(response)
+}
+
+type UpdateAssetResponse = {
+  asset: { id: string; name: string; url: string; view_id: string }
+}
+
+export async function updateAsset(
+  viewId: string,
+  assetId: string,
+  payload: { name?: string; file?: File }
+): Promise<UpdateAssetResponse> {
+  const formData = new FormData()
+  if (payload.name) {
+    formData.append("name", payload.name)
+  }
+  if (payload.file) {
+    formData.append("file", payload.file)
+  }
+
+  const response = await fetch(`${API_BASE_URL}/views/${viewId}/assets/${assetId}`, {
+    method: "PATCH",
+    body: formData,
+  })
+
+  return withJson<UpdateAssetResponse>(response)
 }
 
 export async function updateViewImage(

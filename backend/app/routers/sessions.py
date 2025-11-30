@@ -156,20 +156,9 @@ async def upload_asset(
 
   asset_record = supabase_service.insert_asset_record(view_id, name, public_url)
 
-  chat_entry = {
-    "id": str(uuid4()),
-    "role": "asset",
-    "content": instructions or f"Uploaded {name}",
-    "assetName": name,
-    "assetUrl": public_url,
-    "createdAt": datetime.now(timezone.utc).isoformat(),
-  }
-  supabase_service.append_chat_entry(view_id, chat_entry)
-
   return {
     "asset": asset_record,
     "public_url": public_url,
-    "chat_entry": chat_entry,
   }
 
 
@@ -184,6 +173,48 @@ async def delete_asset(view_id: str, asset_id: str):
 
   supabase_service.delete_asset_record(asset_id)
   return {"status": "success", "asset_id": asset_id}
+
+
+@router.patch("/views/{view_id}/assets/{asset_id}")
+async def update_asset(
+  view_id: str,
+  asset_id: str,
+  name: Optional[str] = Form(None),
+  file: Optional[UploadFile] = File(None),
+):
+  asset = supabase_service.get_asset_record(asset_id)
+  if not asset:
+    raise HTTPException(status_code=404, detail="Asset not found")
+
+  if asset.get("view_id") != view_id:
+    raise HTTPException(status_code=400, detail="Asset does not belong to the specified view")
+
+  updates: Dict[str, Any] = {}
+  if name:
+    updates["name"] = name
+
+  if file:
+    contents = await file.read()
+    extension = file.filename.split(".")[-1] if file.filename and "." in file.filename else "png"
+    safe_extension = extension.lower() or "png"
+    file_name = f"{uuid4()}.{safe_extension}"
+    storage_path = supabase_service.upload_image(
+      contents,
+      file_name,
+      content_type=file.content_type or "image/png",
+      folder=f"assets/{view_id}",
+    )
+    updates["url"] = supabase_service.get_public_url(storage_path)
+
+  if not updates:
+    return {"asset": asset}
+
+  try:
+    updated = supabase_service.update_asset_record(asset_id, updates)
+  except ValueError as exc:
+    raise HTTPException(status_code=404, detail=str(exc))
+
+  return {"asset": updated}
 
 
 @router.delete("/views/{view_id}")

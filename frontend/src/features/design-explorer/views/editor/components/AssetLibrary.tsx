@@ -23,8 +23,8 @@ interface AssetLibraryProps {
   onUploadAsset: (input: { name: string; file: File }) => Promise<void>
   onUpdateAsset: (
     assetId: string,
-    updates: Partial<Omit<AssetItem, "id">>
-  ) => void
+    updates: { name?: string; file?: File }
+  ) => Promise<void>
   onDeleteAsset: (assetId: string) => Promise<void>
 }
 
@@ -44,8 +44,10 @@ export function AssetLibrary({
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null)
   const [editName, setEditName] = useState("")
   const [editPreview, setEditPreview] = useState<string | null>(null)
+  const [editFile, setEditFile] = useState<File | null>(null)
   const [deleteDialogAsset, setDeleteDialogAsset] = useState<AssetItem | null>(null)
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
 
   const resetDialog = () => {
     setAssetName("")
@@ -58,6 +60,7 @@ export function AssetLibrary({
     setEditingAsset(null)
     setEditName("")
     setEditPreview(null)
+    setEditFile(null)
   }
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -96,9 +99,11 @@ export function AssetLibrary({
     const file = event.target.files?.[0]
     if (!file) {
       setEditPreview(editingAsset?.imageUrl ?? null)
+      setEditFile(null)
       return
     }
 
+    setEditFile(file)
     const reader = new FileReader()
     reader.onloadend = () => {
       setEditPreview(reader.result as string)
@@ -106,19 +111,31 @@ export function AssetLibrary({
     reader.readAsDataURL(file)
   }
 
-  const handleEditSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleEditSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!editingAsset) return
     const trimmed = editName.trim()
-    if (!trimmed || !editPreview) return
-    onUpdateAsset(editingAsset.id, { name: trimmed, imageUrl: editPreview })
-    closeEditDialog()
+    if (!trimmed) return
+
+    setIsSavingEdit(true)
+    try {
+      await onUpdateAsset(editingAsset.id, {
+        name: trimmed,
+        file: editFile ?? undefined,
+      })
+      closeEditDialog()
+    } catch (error) {
+      console.error("Failed to update asset", error)
+    } finally {
+      setIsSavingEdit(false)
+    }
   }
 
   const openEditDialog = (asset: AssetItem) => {
     setEditingAsset(asset)
     setEditName(asset.name)
     setEditPreview(asset.imageUrl)
+    setEditFile(null)
     setIsEditDialogOpen(true)
   }
 
@@ -320,8 +337,8 @@ export function AssetLibrary({
               <Button type="button" variant="ghost" onClick={closeEditDialog}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={!editName.trim() || !editPreview}>
-                Save changes
+              <Button type="submit" disabled={!editName.trim() || isSavingEdit}>
+                {isSavingEdit ? "Saving" : "Save changes"}
               </Button>
             </DialogFooter>
           </form>
