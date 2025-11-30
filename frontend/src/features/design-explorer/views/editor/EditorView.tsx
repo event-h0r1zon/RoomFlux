@@ -1,6 +1,6 @@
 import type { DragEvent, FormEvent } from "react"
 import { useState } from "react"
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 // import {
@@ -21,11 +21,11 @@ import {
 // import { ScrollArea } from "@/components/ui/scroll-area"
 // import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import { cn } from "@/lib/utils"
 
 import type { AssetItem } from "../../lib/types"
 import { useDesignExplorer } from "../../context/DesignExplorerContext"
 import { AssetLibrary } from "./components/AssetLibrary.tsx"
+import { CanvasStage } from "./components/CanvasStage.tsx"
 import { ChatPanel } from "./components/ChatPanel.tsx"
 
 const ASSET_TRANSFER_KEY = "design-explorer/asset"
@@ -38,6 +38,7 @@ export function EditorView() {
     handleAssetDrop,
     addAsset,
     updateAsset,
+    deleteAsset,
     chatHistory,
     sendChatMessage,
     isChatSubmitting,
@@ -45,13 +46,15 @@ export function EditorView() {
     imageHistoryPosition,
     goToPreviousImage,
     goToNextImage,
+    canDeleteLatestImage,
+    deleteLatestImage,
+    isDeletingLatestImage,
   } = useDesignExplorer()
 
   if (!selectedImage) {
     return null
   }
 
-  const [isDragOver, setIsDragOver] = useState(false)
   const [instructionDialogOpen, setInstructionDialogOpen] = useState(false)
   const [pendingAsset, setPendingAsset] = useState<AssetItem | null>(null)
   const [placementNotes, setPlacementNotes] = useState("")
@@ -64,8 +67,6 @@ export function EditorView() {
   const canvasImageKey = `${selectedImage.id}-${historyIndex}`
 
   const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    setIsDragOver(false)
     const assetId = event.dataTransfer.getData(ASSET_TRANSFER_KEY)
     const asset = assets.find((item) => item.id === assetId)
     if (!asset) return
@@ -104,60 +105,22 @@ export function EditorView() {
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        <div
-          className={cn(
-            "relative min-h-[460px] rounded-3xl border bg-muted/40 p-4",
-            "transition-all duration-200",
-            isDragOver &&
-              "border-dashed border-primary bg-primary/5 shadow-[0_0_0_2px_rgba(14,165,233,.3)]"
-          )}
-          onDragOver={(event) => {
-            event.preventDefault()
-            setIsDragOver(true)
-          }}
-          onDragLeave={() => setIsDragOver(false)}
-          onDrop={handleDrop}
-        >
-          {showHistoryControls && (
-            <>
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-6">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="icon"
-                  className="pointer-events-auto rounded-full shadow"
-                  onClick={goToPreviousImage}
-                  disabled={!canStepBackward}
-                >
-                  <ChevronLeft className="size-4" />
-                </Button>
-              </div>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-6">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="icon"
-                  className="pointer-events-auto rounded-full shadow"
-                  onClick={goToNextImage}
-                  disabled={!canStepForward}
-                >
-                  <ChevronRight className="size-4" />
-                </Button>
-              </div>
-              <div className="pointer-events-none absolute left-1/2 top-15 -translate-x-1/2 rounded-full bg-background/80 px-3 py-1 text-xs font-medium text-foreground shadow">
-                Image {historyIndex + 1} / {historyCount}
-              </div>
-            </>
-          )}
-          <div className="flex h-full items-center justify-center overflow-hidden rounded-2xl bg-background shadow-inner">
-            <img
-              key={canvasImageKey}
-              src={canvasImageUrl}
-              alt={selectedImage.title}
-              className="h-full max-h-[600px] w-full object-cover"
-            />
-          </div>
-        </div>
+        <CanvasStage
+          selectedImage={selectedImage}
+          canvasImageKey={canvasImageKey}
+          canvasImageUrl={canvasImageUrl}
+          historyIndex={historyIndex}
+          historyCount={historyCount}
+          canStepBackward={canStepBackward}
+          canStepForward={canStepForward}
+          canDeleteLatestImage={canDeleteLatestImage}
+          isDeletingLatestImage={isDeletingLatestImage}
+          showHistoryControls={showHistoryControls}
+          onPreviousImage={goToPreviousImage}
+          onNextImage={goToNextImage}
+          onDeleteLatestImage={deleteLatestImage}
+          onDropAsset={handleDrop}
+        />
 
         <div className="flex flex-col gap-4">
           <AssetLibrary
@@ -165,6 +128,7 @@ export function EditorView() {
             dataTransferKey={ASSET_TRANSFER_KEY}
             onUploadAsset={addAsset}
             onUpdateAsset={updateAsset}
+            onDeleteAsset={deleteAsset}
           />
 
           {/* <Card className="h-44">

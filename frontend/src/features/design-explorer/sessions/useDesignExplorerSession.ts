@@ -8,6 +8,8 @@ import {
   scrapeImmoscout,
   uploadAsset as uploadAssetRequest,
   updateViewImage,
+  revertViewImage,
+  deleteAsset as deleteAssetRequest,
 } from "../lib/api"
 import type {
   AssetItem,
@@ -95,6 +97,7 @@ export function useDesignExplorerSession() {
   const [viewImages, setViewImages] = useState<Record<string, ViewImageMeta>>({})
   const [viewImageIndices, setViewImageIndices] = useState<Record<string, number>>({})
   const [isChatSubmitting, setIsChatSubmitting] = useState(false)
+  const [isRevertingImage, setIsRevertingImage] = useState(false)
   const [timeline, setTimeline] = useState<string[]>([])
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([])
   const [isSessionsLoading, setIsSessionsLoading] = useState(false)
@@ -403,6 +406,90 @@ export function useDesignExplorerSession() {
     [setImages, setSelectedImage, viewLookup]
   )
 
+  const deleteLatestImage = useCallback(async () => {
+    const viewId = resolveViewId()
+    if (!viewId) return
+    const entry = viewImages[viewId]
+    if (!entry || entry.edited.length === 0) return
+
+    setIsRevertingImage(true)
+    try {
+      const response = await revertViewImage(viewId)
+      const updatedEdits = response.data?.edited_images ?? []
+      const rawChatHistory = response.data?.chat_history
+      const normalizedChatHistory = normalizeChatHistory(rawChatHistory)
+
+      setViewImages((prev) => {
+        const previous = prev[viewId]
+        if (!previous) return prev
+        return {
+          ...prev,
+          [viewId]: {
+            original: previous.original,
+            edited: [...updatedEdits],
+          },
+        }
+      })
+
+      const sequence: string[] = []
+      if (entry.original) {
+        sequence.push(entry.original)
+      }
+      sequence.push(...updatedEdits)
+
+      const fallbackIndex = sequence.length > 0 ? sequence.length - 1 : 0
+      const previousIndex = viewImageIndices[viewId] ?? fallbackIndex
+      const nextIndex = sequence.length > 0 ? Math.min(previousIndex, sequence.length - 1) : 0
+
+      setViewImageIndices((prev) => ({
+        ...prev,
+        [viewId]: nextIndex,
+      }))
+
+      if (rawChatHistory !== undefined) {
+        setViewChats((prev) => ({
+          ...prev,
+          [viewId]: normalizedChatHistory,
+        }))
+      }
+
+      const nextUrl = sequence[nextIndex] ?? null
+
+      if (nextUrl) {
+        setImages((prev) =>
+          prev.map((image) => {
+            const imageViewId = image.viewId ?? viewLookup[image.id]
+            if (imageViewId === viewId) {
+              return { ...image, imageUrl: nextUrl }
+            }
+            return image
+          })
+        )
+
+        setSelectedImage((prev) => {
+          if (!prev) return prev
+          const prevViewId = prev.viewId ?? viewLookup[prev.id]
+          if (prevViewId !== viewId) return prev
+          return { ...prev, imageUrl: nextUrl }
+        })
+      }
+
+      fetchSavedSessions()
+    } catch (error) {
+      console.error("Failed to delete latest image edit", error)
+    } finally {
+      setIsRevertingImage(false)
+    }
+  }, [
+    resolveViewId,
+    viewImages,
+    viewImageIndices,
+    setImages,
+    setSelectedImage,
+    viewLookup,
+    fetchSavedSessions,
+  ])
+
   const handleAssetDrop = useCallback(
     async (asset: AssetItem, instructions: string) => {
       const viewId = resolveViewId()
@@ -490,6 +577,32 @@ export function useDesignExplorerSession() {
     [captureTimeline, resolveViewId]
   )
 
+  const deleteAsset = useCallback(
+    async (assetId: string) => {
+      const viewId = resolveViewId()
+      if (!viewId) return
+
+      const targetAsset = viewAssets[viewId]?.find((asset) => asset.id === assetId)
+
+      try {
+        await deleteAssetRequest(viewId, assetId)
+        setViewAssets((prev) => {
+          const list = prev[viewId] ?? []
+          const nextList = list.filter((asset) => asset.id !== assetId)
+          return { ...prev, [viewId]: nextList }
+        })
+
+        if (targetAsset) {
+          captureTimeline(`Asset removed · ${targetAsset.name}`)
+        }
+      } catch (error) {
+        console.error("Failed to delete asset", error)
+        throw error
+      }
+    },
+    [captureTimeline, resolveViewId, viewAssets]
+  )
+
   const sendChatMessage = useCallback(
     async (text: string) => {
       const viewId = resolveViewId()
@@ -557,6 +670,11 @@ export function useDesignExplorerSession() {
     return { index, count: sequence.length }
   }, [activeViewId, getActiveImageIndexForView, getImageSequence])
 
+  const canDeleteLatestImage = useMemo(() => {
+    if (!activeViewId) return false
+    return (viewImages[activeViewId]?.edited.length ?? 0) > 0
+  }, [activeViewId, viewImages])
+
   const goToPreviousImage = useCallback(() => {
     const viewId = resolveViewId()
     if (!viewId) return
@@ -595,6 +713,7 @@ export function useDesignExplorerSession() {
     handleAssetDrop,
     addAsset: uploadAsset,
     updateAsset,
+    deleteAsset,
     chatHistory,
     sendChatMessage,
     isChatSubmitting,
@@ -606,5 +725,8 @@ export function useDesignExplorerSession() {
     imageHistoryPosition,
     goToPreviousImage,
     goToNextImage,
+    canDeleteLatestImage,
+    deleteLatestImage,
+    isDeletingLatestImage: isRevertingImage,
   }
 }

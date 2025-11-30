@@ -1,6 +1,6 @@
 import type { ChangeEvent, FormEvent } from "react"
 import { useState } from "react"
-import { ImagePlus, Pencil, Upload } from "lucide-react"
+import { ImagePlus, Pencil, Trash2, Upload } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -25,6 +25,7 @@ interface AssetLibraryProps {
     assetId: string,
     updates: Partial<Omit<AssetItem, "id">>
   ) => void
+  onDeleteAsset: (assetId: string) => Promise<void>
 }
 
 export function AssetLibrary({
@@ -32,6 +33,7 @@ export function AssetLibrary({
   dataTransferKey,
   onUploadAsset,
   onUpdateAsset,
+  onDeleteAsset,
 }: AssetLibraryProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [assetName, setAssetName] = useState("")
@@ -42,6 +44,8 @@ export function AssetLibrary({
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null)
   const [editName, setEditName] = useState("")
   const [editPreview, setEditPreview] = useState<string | null>(null)
+  const [deleteDialogAsset, setDeleteDialogAsset] = useState<AssetItem | null>(null)
+  const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null)
 
   const resetDialog = () => {
     setAssetName("")
@@ -116,6 +120,20 @@ export function AssetLibrary({
     setEditName(asset.name)
     setEditPreview(asset.imageUrl)
     setIsEditDialogOpen(true)
+  }
+
+  const handleDeleteAsset = async () => {
+    if (!deleteDialogAsset) return
+    const assetId = deleteDialogAsset.id
+    setDeletingAssetId(assetId)
+    try {
+      await onDeleteAsset(assetId)
+      setDeleteDialogAsset(null)
+    } catch (error) {
+      console.error("Failed to delete asset", error)
+    } finally {
+      setDeletingAssetId(null)
+    }
   }
 
   return (
@@ -212,9 +230,9 @@ export function AssetLibrary({
                     event.dataTransfer.setData(dataTransferKey, asset.id)
                     event.dataTransfer.effectAllowed = "copy"
                   }}
-                  className="flex w-full items-center justify-between gap-3 rounded-xl border bg-background px-3 py-2 text-left text-sm transition-all hover:border-primary/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                  className="flex w-full items-center gap-3 rounded-xl border bg-background px-3 py-2 text-left text-sm transition-all hover:border-primary/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-1 items-center gap-3">
                     <img
                       src={asset.imageUrl}
                       alt={asset.name}
@@ -222,18 +240,33 @@ export function AssetLibrary({
                     />
                     <span className="font-semibold">{asset.name}</span>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      openEditDialog(asset)
-                    }}
-                  >
-                    <Pencil className="size-4" />
-                    <span className="sr-only">Edit {asset.name}</span>
-                  </Button>
+                  <div className="ml-auto flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openEditDialog(asset)
+                      }}
+                    >
+                      <Pencil className="size-4" />
+                      <span className="sr-only">Edit {asset.name}</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setDeleteDialogAsset(asset)
+                      }}
+                      disabled={deletingAssetId === asset.id}
+                    >
+                      <Trash2 className="size-4" />
+                      <span className="sr-only">Delete {asset.name}</span>
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -242,56 +275,94 @@ export function AssetLibrary({
       </CardContent>
       </Card>
       <Dialog
-      open={isEditDialogOpen}
-      onOpenChange={(open) => {
-        if (!open) {
-          closeEditDialog()
-        }
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {editingAsset ? `Edit ${editingAsset.name}` : "Edit asset"}
-          </DialogTitle>
-        </DialogHeader>
-        <form className="space-y-4" onSubmit={handleEditSubmit}>
-          <div className="space-y-2">
-            <Label htmlFor="edit-asset-name">Asset name</Label>
-            <Input
-              id="edit-asset-name"
-              placeholder="e.g. Linen Sofa"
-              value={editName}
-              onChange={(event) => setEditName(event.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-asset-image">Asset image</Label>
-            <Input
-              id="edit-asset-image"
-              type="file"
-              accept="image/*"
-              onChange={handleEditFileChange}
-            />
-            {editPreview && (
-              <div className="rounded-lg border bg-muted/30 p-2">
-                <img
-                  src={editPreview}
-                  alt="Asset preview"
-                  className="h-32 w-full rounded-md object-cover"
-                />
-              </div>
-            )}
-          </div>
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeEditDialog()
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingAsset ? `Edit ${editingAsset.name}` : "Edit asset"}
+            </DialogTitle>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleEditSubmit}>
+            <div className="space-y-2">
+              <Label htmlFor="edit-asset-name">Asset name</Label>
+              <Input
+                id="edit-asset-name"
+                placeholder="e.g. Linen Sofa"
+                value={editName}
+                onChange={(event) => setEditName(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-asset-image">Asset image</Label>
+              <Input
+                id="edit-asset-image"
+                type="file"
+                accept="image/*"
+                onChange={handleEditFileChange}
+              />
+              {editPreview && (
+                <div className="rounded-lg border bg-muted/30 p-2">
+                  <img
+                    src={editPreview}
+                    alt="Asset preview"
+                    className="h-32 w-full rounded-md object-cover"
+                  />
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={closeEditDialog}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!editName.trim() || !editPreview}>
+                Save changes
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(deleteDialogAsset)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteDialogAsset(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete asset</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {deleteDialogAsset
+              ? `Remove ${deleteDialogAsset.name} from this view? This action cannot be undone.`
+              : "Remove this asset?"}
+          </p>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={closeEditDialog}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setDeleteDialogAsset(null)}
+              disabled={Boolean(deletingAssetId)}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={!editName.trim() || !editPreview}>
-              Save changes
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteAsset}
+              disabled={Boolean(deletingAssetId)}
+            >
+              {deletingAssetId ? "Deleting" : "Delete"}
             </Button>
           </DialogFooter>
-        </form>
         </DialogContent>
       </Dialog>
     </>

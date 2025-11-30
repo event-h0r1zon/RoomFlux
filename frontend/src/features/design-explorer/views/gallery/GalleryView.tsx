@@ -1,10 +1,10 @@
 import { ArrowLeft, ImagePlus } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
+// import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
-  CardContent,
+  // CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -56,7 +56,7 @@ export function GalleryView() {
               <CardTitle>{image.title}</CardTitle>
               <CardDescription>{image.description}</CardDescription>
             </CardHeader>
-            <CardContent>
+            {/* <CardContent>
               <div className="flex flex-wrap gap-2">
                 {image.tags.map((tag) => (
                   <Badge key={tag} variant="outline">
@@ -64,7 +64,7 @@ export function GalleryView() {
                   </Badge>
                 ))}
               </div>
-            </CardContent>
+            </CardContent> */}
           </Card>
         ))}
       </div>
