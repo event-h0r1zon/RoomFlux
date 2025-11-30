@@ -80,6 +80,14 @@ export function useDesignExplorerSession() {
       captureTimeline(
         `${asset.name} queued · "${instructions.substring(0, 36)}"`
       )
+      const assetMessage: ChatMessage = {
+        id: makeId(),
+        role: "asset",
+        content: instructions,
+        createdAt: new Date(),
+        assetName: asset.name,
+      }
+      setChatHistory((prev) => [...prev, assetMessage])
     },
     [captureTimeline, selectedImage]
   )
@@ -88,6 +96,24 @@ export function useDesignExplorerSession() {
     setAssets((prev) => [{ id: makeId(), ...asset }, ...prev])
     captureTimeline(`Asset added · ${asset.name}`)
   }, [captureTimeline])
+
+  const updateAsset = useCallback(
+    (assetId: string, updates: Partial<Omit<AssetItem, "id">>) => {
+      let updatedName: string | null = null
+      setAssets((prev) =>
+        prev.map((asset) => {
+          if (asset.id !== assetId) return asset
+          const next = { ...asset, ...updates }
+          updatedName = next.name
+          return next
+        })
+      )
+      if (updatedName) {
+        captureTimeline(`Asset updated · ${updatedName}`)
+      }
+    },
+    [captureTimeline]
+  )
 
   const sendChatMessage = useCallback(
     async (text: string) => {
@@ -136,6 +162,7 @@ export function useDesignExplorerSession() {
     assets,
     handleAssetDrop,
     addAsset,
+    updateAsset,
     chatHistory,
     sendChatMessage,
     isChatSubmitting,

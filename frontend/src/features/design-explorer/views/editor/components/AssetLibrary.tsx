@@ -1,6 +1,6 @@
 import type { ChangeEvent, FormEvent } from "react"
 import { useState } from "react"
-import { ImagePlus, Upload } from "lucide-react"
+import { ImagePlus, Pencil, Upload } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -21,20 +21,36 @@ interface AssetLibraryProps {
   assets: AssetItem[]
   dataTransferKey: string
   onUploadAsset: (asset: Omit<AssetItem, "id">) => void
+  onUpdateAsset: (
+    assetId: string,
+    updates: Partial<Omit<AssetItem, "id">>
+  ) => void
 }
 
 export function AssetLibrary({
   assets,
   dataTransferKey,
   onUploadAsset,
+  onUpdateAsset,
 }: AssetLibraryProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [assetName, setAssetName] = useState("")
   const [preview, setPreview] = useState<string | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null)
+  const [editName, setEditName] = useState("")
+  const [editPreview, setEditPreview] = useState<string | null>(null)
 
   const resetDialog = () => {
     setAssetName("")
     setPreview(null)
+  }
+
+  const closeEditDialog = () => {
+    setIsEditDialogOpen(false)
+    setEditingAsset(null)
+    setEditName("")
+    setEditPreview(null)
   }
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -60,8 +76,39 @@ export function AssetLibrary({
     setIsDialogOpen(false)
   }
 
+  const handleEditFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) {
+      setEditPreview(editingAsset?.imageUrl ?? null)
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setEditPreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleEditSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!editingAsset) return
+    const trimmed = editName.trim()
+    if (!trimmed || !editPreview) return
+    onUpdateAsset(editingAsset.id, { name: trimmed, imageUrl: editPreview })
+    closeEditDialog()
+  }
+
+  const openEditDialog = (asset: AssetItem) => {
+    setEditingAsset(asset)
+    setEditName(asset.name)
+    setEditPreview(asset.imageUrl)
+    setIsEditDialogOpen(true)
+  }
+
   return (
-    <Card className="h-full">
+    <>
+      <Card className="h-full">
       <CardHeader className="py-4">
         <CardTitle className="text-base">Asset Library</CardTitle>
         <CardDescription>
@@ -141,28 +188,97 @@ export function AssetLibrary({
                 </div>
               )}
               {assets.map((asset) => (
-                <button
-                  type="button"
+                <div
                   key={asset.id}
+                  role="button"
+                  tabIndex={0}
                   draggable
                   onDragStart={(event) => {
                     event.dataTransfer.setData(dataTransferKey, asset.id)
                     event.dataTransfer.effectAllowed = "copy"
                   }}
-                  className="flex w-full items-center gap-3 rounded-xl border bg-background px-3 py-2 text-left text-sm transition-all hover:-translate-y-0.5 hover:border-primary/80"
+                  className="flex w-full items-center justify-between gap-3 rounded-xl border bg-background px-3 py-2 text-left text-sm transition-all hover:border-primary/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                 >
-                  <img
-                    src={asset.imageUrl}
-                    alt={asset.name}
-                    className="size-12 rounded-lg object-cover"
-                  />
-                  <span className="font-semibold">{asset.name}</span>
-                </button>
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={asset.imageUrl}
+                      alt={asset.name}
+                      className="size-12 rounded-lg object-cover"
+                    />
+                    <span className="font-semibold">{asset.name}</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      openEditDialog(asset)
+                    }}
+                  >
+                    <Pencil className="size-4" />
+                    <span className="sr-only">Edit {asset.name}</span>
+                  </Button>
+                </div>
               ))}
             </div>
           </ScrollArea>
         </div>
       </CardContent>
-    </Card>
+      </Card>
+      <Dialog
+      open={isEditDialogOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          closeEditDialog()
+        }
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {editingAsset ? `Edit ${editingAsset.name}` : "Edit asset"}
+          </DialogTitle>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={handleEditSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="edit-asset-name">Asset name</Label>
+            <Input
+              id="edit-asset-name"
+              placeholder="e.g. Linen Sofa"
+              value={editName}
+              onChange={(event) => setEditName(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-asset-image">Asset image</Label>
+            <Input
+              id="edit-asset-image"
+              type="file"
+              accept="image/*"
+              onChange={handleEditFileChange}
+            />
+            {editPreview && (
+              <div className="rounded-lg border bg-muted/30 p-2">
+                <img
+                  src={editPreview}
+                  alt="Asset preview"
+                  className="h-32 w-full rounded-md object-cover"
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={closeEditDialog}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!editName.trim() || !editPreview}>
+              Save changes
+            </Button>
+          </DialogFooter>
+        </form>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

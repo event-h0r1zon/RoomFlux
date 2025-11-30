@@ -1,6 +1,6 @@
 import type { DragEvent, FormEvent } from "react"
 import { useState } from "react"
-import { ArrowLeft, Maximize2 } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 // import {
@@ -39,6 +39,10 @@ interface EditorViewProps {
   onBack: () => void
   onAssetDrop: (asset: AssetItem, instructions: string) => Promise<void>
   onUploadAsset: (asset: Omit<AssetItem, "id">) => void
+  onUpdateAsset: (
+    assetId: string,
+    updates: Partial<Omit<AssetItem, "id">>
+  ) => void
   chatHistory: ChatMessage[]
   onSendChat: (value: string) => Promise<void>
   isChatSubmitting: boolean
@@ -51,6 +55,7 @@ export function EditorView({
   onBack,
   onAssetDrop,
   onUploadAsset,
+  onUpdateAsset,
   chatHistory,
   onSendChat,
   isChatSubmitting,
@@ -116,10 +121,6 @@ export function EditorView({
           onDragLeave={() => setIsDragOver(false)}
           onDrop={handleDrop}
         >
-          <div className="absolute right-6 top-6 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
-            <Maximize2 className="size-4" />
-            Drag assets here
-          </div>
           <div className="flex h-full items-center justify-center overflow-hidden rounded-2xl bg-background shadow-inner">
             <img
               key={image.id}
@@ -135,6 +136,7 @@ export function EditorView({
             assets={assets}
             dataTransferKey={ASSET_TRANSFER_KEY}
             onUploadAsset={onUploadAsset}
+            onUpdateAsset={onUpdateAsset}
           />
 
           {/* <Card className="h-44">
