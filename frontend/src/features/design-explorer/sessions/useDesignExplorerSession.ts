@@ -10,6 +10,8 @@ import {
   updateViewImage,
   revertViewImage,
   deleteAsset as deleteAssetRequest,
+  deleteView as deleteViewRequest,
+  deleteSession as deleteSessionRequest,
 } from "../lib/api"
 import type {
   AssetItem,
@@ -222,7 +224,7 @@ export function useDesignExplorerSession() {
   }, [])
 
   const resumeSession = useCallback(
-    (sessionId: string) => {
+    (sessionId: string, targetViewId?: string) => {
       const session = savedSessions.find((item) => item.id === sessionId)
       if (!session) {
         return
@@ -252,7 +254,7 @@ export function useDesignExplorerSession() {
           viewRecord.editedImages.length > 0
             ? viewRecord.editedImages[viewRecord.editedImages.length - 1]
             : viewRecord.originalImage
-        reconstructed.push({
+        const reconstructedEntry: ScrapedImage = {
           id: imageId,
           title: `Session view ${index + 1}`,
           roomType: "Imported",
@@ -260,7 +262,8 @@ export function useDesignExplorerSession() {
           imageUrl: latestImage ?? viewRecord.originalImage,
           tags: ["saved"],
           viewId: viewRecord.id,
-        })
+        }
+        reconstructed.push(reconstructedEntry)
       })
 
       if (reconstructed.length === 0) {
@@ -276,15 +279,20 @@ export function useDesignExplorerSession() {
         assetsMap[viewRecord.id] = viewRecord.assets
       })
 
+      const targetedImage = targetViewId
+        ? reconstructed.find((image) => (image.viewId ?? lookup[image.id]) === targetViewId) ?? null
+        : null
+      const nextView = targetedImage ? "editor" : "gallery"
+
       setImages(reconstructed)
-      setSelectedImage(null)
+      setSelectedImage(targetedImage)
       setViewLookup(lookup)
       setViewChats(chatsMap)
       setViewAssets(assetsMap)
       setViewImages(viewImageMap)
       setViewImageIndices(indexMap)
       setTimeline([])
-      setView("gallery")
+      setView(nextView)
       setStatus(null)
     },
     [savedSessions]
@@ -293,6 +301,22 @@ export function useDesignExplorerSession() {
   const captureTimeline = useCallback((entry: string) => {
     setTimeline((prev) => [entry, ...prev].slice(0, 6))
   }, [])
+
+  const deleteSession = useCallback(
+    async (sessionId: string) => {
+      if (!sessionId) return
+      try {
+        await deleteSessionRequest(sessionId)
+        setSavedSessions((prev) => prev.filter((session) => session.id !== sessionId))
+        captureTimeline(`Session deleted · ${sessionId.slice(0, 6)}`)
+        await fetchSavedSessions()
+      } catch (error) {
+        console.error("Failed to delete session", error)
+        throw error
+      }
+    },
+    [captureTimeline, fetchSavedSessions]
+  )
 
   const resolveViewId = useCallback(() => {
     if (!selectedImage) return null
@@ -603,6 +627,81 @@ export function useDesignExplorerSession() {
     [captureTimeline, resolveViewId, viewAssets]
   )
 
+  const deleteView = useCallback(
+    async (viewId: string) => {
+      if (!viewId) return
+
+      try {
+        await deleteViewRequest(viewId)
+
+        setImages((prev) =>
+          prev.filter((image) => {
+            const imageViewId = image.viewId ?? viewLookup[image.id]
+            return imageViewId !== viewId
+          })
+        )
+
+        setViewLookup((prev) => {
+          const next = { ...prev }
+          Object.keys(next).forEach((key) => {
+            if (next[key] === viewId) {
+              delete next[key]
+            }
+          })
+          return next
+        })
+
+        setViewImages((prev) => {
+          if (!(viewId in prev)) return prev
+          const next = { ...prev }
+          delete next[viewId]
+          return next
+        })
+
+        setViewChats((prev) => {
+          if (!(viewId in prev)) return prev
+          const next = { ...prev }
+          delete next[viewId]
+          return next
+        })
+
+        setViewAssets((prev) => {
+          if (!(viewId in prev)) return prev
+          const next = { ...prev }
+          delete next[viewId]
+          return next
+        })
+
+        setViewImageIndices((prev) => {
+          if (!(viewId in prev)) return prev
+          const next = { ...prev }
+          delete next[viewId]
+          return next
+        })
+
+        if (selectedImage) {
+          const selectedViewId = selectedImage.viewId ?? viewLookup[selectedImage.id]
+          if (selectedViewId === viewId) {
+            setSelectedImage(null)
+            setView("gallery")
+          }
+        }
+
+        captureTimeline(`View deleted · ${viewId.slice(0, 6)}`)
+        fetchSavedSessions()
+      } catch (error) {
+        console.error("Failed to delete view", error)
+        throw error
+      }
+    },
+    [
+      viewLookup,
+      selectedImage,
+      captureTimeline,
+      fetchSavedSessions,
+    ]
+  )
+
   const sendChatMessage = useCallback(
     async (text: string) => {
       const viewId = resolveViewId()
@@ -721,6 +820,7 @@ export function useDesignExplorerSession() {
     savedSessions,
     isSessionsLoading,
     resumeSession,
+    deleteSession,
     activeImageUrl,
     imageHistoryPosition,
     goToPreviousImage,
@@ -728,5 +828,6 @@ export function useDesignExplorerSession() {
     canDeleteLatestImage,
     deleteLatestImage,
     isDeletingLatestImage: isRevertingImage,
+    deleteView,
   }
 }

@@ -186,6 +186,55 @@ class SupabaseService:
             .execute()
         )
 
+    def delete_view(self, view_id: str) -> None:
+        self.client.table("asset_library").delete().eq("view_id", view_id).execute()
+        (
+            self.client.table("views")
+            .delete()
+            .eq("id", view_id)
+            .execute()
+        )
+
+    def delete_session(self, session_id: str) -> None:
+        session_response = (
+            self.client.table("sessions")
+            .select("id")
+            .eq("id", session_id)
+            .execute()
+        )
+        session_records = session_response.data or []
+        if not session_records:
+            raise ValueError("Session not found")
+
+        views_response = (
+            self.client.table("views")
+            .select("id")
+            .eq("session_id", session_id)
+            .execute()
+        )
+        view_ids = [item["id"] for item in (views_response.data or [])]
+
+        if view_ids:
+            (
+                self.client.table("asset_library")
+                .delete()
+                .in_("view_id", view_ids)
+                .execute()
+            )
+            (
+                self.client.table("views")
+                .delete()
+                .in_("id", view_ids)
+                .execute()
+            )
+
+        (
+            self.client.table("sessions")
+            .delete()
+            .eq("id", session_id)
+            .execute()
+        )
+
     def list_sessions(self, limit: int = 10) -> List[Dict[str, Any]]:
         response = (
             self.client.table("sessions")
