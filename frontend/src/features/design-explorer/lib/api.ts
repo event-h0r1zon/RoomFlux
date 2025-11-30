@@ -7,8 +7,40 @@ const sleep = (duration = SIMULATED_DELAY) =>
   new Promise((resolve) => setTimeout(resolve, duration))
 
 export async function scrapeImmoscout(url: string): Promise<ScrapedImage[]> {
-  console.info("[scrapeImmoscout] Pretending to scrape:", url)
-  await sleep()
+  console.info("[scrapeImmoscout] Scraping:", url)
+
+
+  // STEP 1: SCRAPE FOR IMAGE URLS
+
+  const image_urls = await fetch("http://localhost:8000/api/v1/images/scrape", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ url }),
+  });
+
+  console.log("Received response from /api/v1/images/scrape");
+
+  if (!image_urls.ok) {
+    throw new Error("Failed to scrape images from Immoscout");
+  }
+
+  const data = await image_urls.json();
+  console.log("Scraped image URLs:", data);
+
+
+  // STEP 2: UPLOAD SCRAPED IMAGES TO BACKEND
+
+  for (const imageUrl of data.image_urls) {
+
+    const imageFile = await fetch(imageUrl).then(res => res.blob());
+
+    // DENIS DO SOMETHING HERE !!!
+  }
+
+
+
   return MOCK_SCRAPED_IMAGES
 }
 
