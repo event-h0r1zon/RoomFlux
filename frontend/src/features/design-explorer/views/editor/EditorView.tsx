@@ -1,6 +1,6 @@
 import type { DragEvent, FormEvent } from "react"
 import { useState } from "react"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 // import {
@@ -41,6 +41,10 @@ export function EditorView() {
     chatHistory,
     sendChatMessage,
     isChatSubmitting,
+    activeImageUrl,
+    imageHistoryPosition,
+    goToPreviousImage,
+    goToNextImage,
   } = useDesignExplorer()
 
   if (!selectedImage) {
@@ -51,6 +55,13 @@ export function EditorView() {
   const [instructionDialogOpen, setInstructionDialogOpen] = useState(false)
   const [pendingAsset, setPendingAsset] = useState<AssetItem | null>(null)
   const [placementNotes, setPlacementNotes] = useState("")
+  const historyIndex = imageHistoryPosition.index
+  const historyCount = imageHistoryPosition.count
+  const canStepBackward = historyCount > 0 && historyIndex > 0
+  const canStepForward = historyCount > 0 && historyIndex < historyCount - 1
+  const showHistoryControls = historyCount > 1
+  const canvasImageUrl = activeImageUrl ?? selectedImage.imageUrl
+  const canvasImageKey = `${selectedImage.id}-${historyIndex}`
 
   const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -107,10 +118,41 @@ export function EditorView() {
           onDragLeave={() => setIsDragOver(false)}
           onDrop={handleDrop}
         >
+          {showHistoryControls && (
+            <>
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-6">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  className="pointer-events-auto rounded-full shadow"
+                  onClick={goToPreviousImage}
+                  disabled={!canStepBackward}
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+              </div>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-6">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  className="pointer-events-auto rounded-full shadow"
+                  onClick={goToNextImage}
+                  disabled={!canStepForward}
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
+              <div className="pointer-events-none absolute left-1/2 top-15 -translate-x-1/2 rounded-full bg-background/80 px-3 py-1 text-xs font-medium text-foreground shadow">
+                Image {historyIndex + 1} / {historyCount}
+              </div>
+            </>
+          )}
           <div className="flex h-full items-center justify-center overflow-hidden rounded-2xl bg-background shadow-inner">
             <img
-              key={selectedImage.id}
-              src={selectedImage.imageUrl}
+              key={canvasImageKey}
+              src={canvasImageUrl}
               alt={selectedImage.title}
               className="h-full max-h-[600px] w-full object-cover"
             />

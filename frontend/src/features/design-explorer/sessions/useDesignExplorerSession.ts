@@ -93,6 +93,7 @@ export function useDesignExplorerSession() {
   const [viewChats, setViewChats] = useState<Record<string, ChatMessage[]>>({})
   const [viewAssets, setViewAssets] = useState<Record<string, AssetItem[]>>({})
   const [viewImages, setViewImages] = useState<Record<string, ViewImageMeta>>({})
+  const [viewImageIndices, setViewImageIndices] = useState<Record<string, number>>({})
   const [isChatSubmitting, setIsChatSubmitting] = useState(false)
   const [timeline, setTimeline] = useState<string[]>([])
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([])
@@ -162,6 +163,7 @@ export function useDesignExplorerSession() {
 
       const lookup: Record<string, string> = {}
       const viewImageMap: Record<string, ViewImageMeta> = {}
+      const indexMap: Record<string, number> = {}
       const enhancedImages = result.map((image, index) => {
         const viewRecord = session.views[index]
         if (viewRecord?.id) {
@@ -171,6 +173,8 @@ export function useDesignExplorerSession() {
             original,
             edited: [],
           }
+          const listLength = original ? 1 : 0
+          indexMap[viewRecord.id] = Math.max(0, listLength - 1)
           return { ...image, viewId: viewRecord.id, imageUrl: original ?? image.imageUrl }
         }
         return image
@@ -178,6 +182,7 @@ export function useDesignExplorerSession() {
 
       setViewLookup(lookup)
       setViewImages(viewImageMap)
+      setViewImageIndices(indexMap)
       setImages(enhancedImages)
       setViewChats({})
       setViewAssets({})
@@ -207,6 +212,7 @@ export function useDesignExplorerSession() {
     setViewChats({})
     setViewAssets({})
     setViewImages({})
+    setViewImageIndices({})
     setImages(MOCK_SCRAPED_IMAGES)
     setTimeline([])
     setStatus(null)
@@ -222,6 +228,7 @@ export function useDesignExplorerSession() {
       const lookup: Record<string, string> = {}
       const reconstructed: ScrapedImage[] = []
       const viewImageMap: Record<string, ViewImageMeta> = {}
+      const indexMap: Record<string, number> = {}
 
       session.views.forEach((viewRecord, index) => {
         if (!viewRecord.originalImage) {
@@ -234,6 +241,9 @@ export function useDesignExplorerSession() {
             original: viewRecord.originalImage,
             edited: [...viewRecord.editedImages],
           }
+          const totalLength =
+            (viewRecord.originalImage ? 1 : 0) + viewRecord.editedImages.length
+          indexMap[viewRecord.id] = Math.max(0, totalLength - 1)
         }
         const latestImage =
           viewRecord.editedImages.length > 0
@@ -269,6 +279,7 @@ export function useDesignExplorerSession() {
       setViewChats(chatsMap)
       setViewAssets(assetsMap)
       setViewImages(viewImageMap)
+      setViewImageIndices(indexMap)
       setTimeline([])
       setView("gallery")
       setStatus(null)
@@ -285,35 +296,92 @@ export function useDesignExplorerSession() {
     return selectedImage.viewId ?? viewLookup[selectedImage.id] ?? null
   }, [selectedImage, viewLookup])
 
-  const getLatestImageUrl = useCallback(
+  const getImageSequence = useCallback(
     (targetViewId: string | null) => {
-      if (!targetViewId) return null
+      if (!targetViewId) return []
       const entry = viewImages[targetViewId]
-      if (!entry) return null
-      const edits = entry.edited.filter(Boolean)
-      if (edits.length > 0) {
-        return edits[edits.length - 1]
+      if (!entry) return []
+      const sequence: string[] = []
+      if (entry.original) {
+        sequence.push(entry.original)
       }
-      return entry.original
+      return [...sequence, ...entry.edited]
     },
     [viewImages]
   )
 
+  const getActiveImageIndexForView = useCallback(
+    (targetViewId: string) => {
+      const sequence = getImageSequence(targetViewId)
+      if (sequence.length === 0) return 0
+      const fallbackIndex = sequence.length - 1
+      const rawIndex = viewImageIndices[targetViewId]
+      const clampedIndex =
+        typeof rawIndex === "number"
+          ? Math.min(Math.max(rawIndex, 0), fallbackIndex)
+          : fallbackIndex
+      return clampedIndex
+    },
+    [getImageSequence, viewImageIndices]
+  )
+
+  const getActiveImageUrlForView = useCallback(
+    (targetViewId: string) => {
+      const sequence = getImageSequence(targetViewId)
+      if (sequence.length === 0) return null
+      const index = getActiveImageIndexForView(targetViewId)
+      return sequence[index] ?? null
+    },
+    [getImageSequence, getActiveImageIndexForView]
+  )
+
+  const shiftImageIndex = useCallback(
+    (targetViewId: string, delta: number) => {
+      setViewImageIndices((prev) => {
+        const sequence = getImageSequence(targetViewId)
+        if (sequence.length === 0) return prev
+        const fallbackIndex = sequence.length - 1
+        const currentIndex =
+          typeof prev[targetViewId] === "number"
+            ? Math.min(Math.max(prev[targetViewId], 0), fallbackIndex)
+            : fallbackIndex
+        const nextIndex = Math.min(
+          Math.max(currentIndex + delta, 0),
+          sequence.length - 1
+        )
+        if (nextIndex === currentIndex) return prev
+        return { ...prev, [targetViewId]: nextIndex }
+      })
+    },
+    [getImageSequence]
+  )
+
   const applyEditedImage = useCallback(
     (viewId: string, nextUrl: string, fallbackOriginal?: string | null) => {
+      let appendedIndex = 0
       setViewImages((prev) => {
         const current = prev[viewId] ?? {
           original: fallbackOriginal ?? null,
           edited: [],
         }
+        const resolvedOriginal = current.original ?? fallbackOriginal ?? null
+        const updatedEntry = {
+          original: resolvedOriginal,
+          edited: [...current.edited, nextUrl],
+        }
+        const sequenceLength =
+          (resolvedOriginal ? 1 : 0) + updatedEntry.edited.length
+        appendedIndex = Math.max(0, sequenceLength - 1)
         return {
           ...prev,
-          [viewId]: {
-            original: current.original ?? fallbackOriginal ?? null,
-            edited: [...current.edited, nextUrl],
-          },
+          [viewId]: updatedEntry,
         }
       })
+
+      setViewImageIndices((prev) => ({
+        ...prev,
+        [viewId]: appendedIndex,
+      }))
 
       setImages((prev) =>
         prev.map((image) => {
@@ -440,7 +508,7 @@ export function useDesignExplorerSession() {
         captureTimeline(`Prompt sent · "${trimmed.substring(0, 36)}"`)
 
         const sourceImageUrl =
-          getLatestImageUrl(viewId) ?? selectedImage?.imageUrl ?? null
+          getActiveImageUrlForView(viewId) ?? selectedImage?.imageUrl ?? null
         if (sourceImageUrl) {
           try {
             const generation = await updateViewImage(viewId, {
@@ -465,7 +533,7 @@ export function useDesignExplorerSession() {
     [
       captureTimeline,
       resolveViewId,
-      getLatestImageUrl,
+      getActiveImageUrlForView,
       selectedImage,
       applyEditedImage,
       fetchSavedSessions,
@@ -474,8 +542,32 @@ export function useDesignExplorerSession() {
 
   const activeViewId = resolveViewId()
   const activeImageUrl = activeViewId
-    ? getLatestImageUrl(activeViewId) ?? selectedImage?.imageUrl ?? null
+    ? getActiveImageUrlForView(activeViewId) ?? selectedImage?.imageUrl ?? null
     : null
+
+  const imageHistoryPosition = useMemo(() => {
+    if (!activeViewId) {
+      return { index: 0, count: 0 }
+    }
+    const sequence = getImageSequence(activeViewId)
+    if (sequence.length === 0) {
+      return { index: 0, count: 0 }
+    }
+    const index = getActiveImageIndexForView(activeViewId)
+    return { index, count: sequence.length }
+  }, [activeViewId, getActiveImageIndexForView, getImageSequence])
+
+  const goToPreviousImage = useCallback(() => {
+    const viewId = resolveViewId()
+    if (!viewId) return
+    shiftImageIndex(viewId, -1)
+  }, [resolveViewId, shiftImageIndex])
+
+  const goToNextImage = useCallback(() => {
+    const viewId = resolveViewId()
+    if (!viewId) return
+    shiftImageIndex(viewId, 1)
+  }, [resolveViewId, shiftImageIndex])
 
   const assets = useMemo(
     () => (activeViewId ? viewAssets[activeViewId] ?? [] : []),
@@ -511,5 +603,8 @@ export function useDesignExplorerSession() {
     isSessionsLoading,
     resumeSession,
     activeImageUrl,
+    imageHistoryPosition,
+    goToPreviousImage,
+    goToNextImage,
   }
 }
