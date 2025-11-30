@@ -5,10 +5,10 @@ import { DesignExplorerExperience } from "@/features/design-explorer/DesignExplo
 
 function App() {
   return (
-    <>
+    <div className="flex min-h-screen w-screen">
       <DesignExplorerExperience />
       <Toaster position="top-right" />
-    </>
+    </div>
   )
 }
 
