@@ -34,7 +34,7 @@ class FluxService:
                     self.base_url,
                     json=payload,
                     headers=self.headers,
-                    timeout=60.0,
+                    timeout=180.0,
                 )
                 response.raise_for_status()
                 return response.json()
@@ -52,7 +52,23 @@ class FluxService:
         """
 
         final_prompt = (
-            f"Extract the asset named '{asset_name}' from the second image and integrate it into the first image realistically according to the prompt: {prompt}"
+            """
+### ROLE DEFINITION
+You are an expert Virtual Stager and Interior Renovation AI. Your primary function is to modify interior spaces based on an input image while maintaining strict adherence to the original architectural structure, perspective, and lighting conditions. You are adding, removing, or rearranging elements *within* an existing reality, not creating a new one.
+
+1.  **Structural Integrity (Immutable Geometry):**
+    * **DO NOT** alter the room's physical shell unless explicitly instructed. Walls, windows, ceilings, door frames, and flooring types must remain consistent with the input image.
+    * Preserve the original camera angle, focal length, and perspective. The "container" of the room must match the source exactly.
+2.  **Lighting & Atmospheric Continuity:**
+    * Analyze the light sources in the input image (direction, intensity, color temperature).
+    * Any new furniture or appliances added must cast shadows consistent with existing light sources.
+    * Reflections on new surfaces (e.g., a new glossy fridge) must reflect the existing environment.
+3.  **Seamless Integration (The "Inpainting" Logic):**
+    * New objects must blend seamlessly with the environment. Ensure correct occlusion. Scale new items relative to existing "anchor objects".
+4.  **Stylistic Cohesion:**
+    * Unless the user asks for a style overhaul, match the texture fidelity and color grading of the new items to the original image's quality (e.g., if the photo is grainy, the new item should have slight grain).
+5.  **Do not** change the time of day or window views, move structural pillars, fireplaces, or built-in architectural features or change the aspect ratio or crop the image composition unless asked.
+            """.strip() +f"\n\n### TASK\nExtract the asset named '{asset_name}' from the second image and integrate it into the first image realistically according to the prompt: {prompt}"
         )
 
         async with httpx.AsyncClient() as client:
@@ -63,7 +79,7 @@ class FluxService:
                 **kwargs
             }
             try:
-                response = await client.post(self.base_url, json=payload, headers=self.headers, timeout=60.0)
+                response = await client.post(self.base_url, json=payload, headers=self.headers, timeout=180.0)
                 response.raise_for_status()
                 return response.json()
             except httpx.HTTPStatusError as e:
@@ -74,7 +90,7 @@ class FluxService:
                 raise e
 
 
-    async def poll_result(self, polling_url: str, interval: float = 2.0, timeout: float = 60.0):
+    async def poll_result(self, polling_url: str, interval: float = 2.0, timeout: float = 180.0):
         """
         Polls the polling_url until the image is ready or timeout is reached.
         """
@@ -82,7 +98,7 @@ class FluxService:
             start_time = asyncio.get_event_loop().time()
             while (asyncio.get_event_loop().time() - start_time) < timeout:
                 try:
-                    response = await client.get(polling_url, headers=self.headers, timeout=30.0)
+                    response = await client.get(polling_url, headers=self.headers, timeout=180.0)
                     response.raise_for_status()
                     data = response.json()
                     

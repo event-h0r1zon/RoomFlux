@@ -27,6 +27,7 @@ import { useDesignExplorer } from "../../context/DesignExplorerContext"
 import { AssetLibrary } from "./components/AssetLibrary.tsx"
 import { CanvasStage } from "./components/CanvasStage.tsx"
 import { ChatPanel } from "./components/ChatPanel.tsx"
+import { toast } from "sonner"
 
 const ASSET_TRANSFER_KEY = "design-explorer/asset"
 
@@ -86,8 +87,16 @@ export function EditorView() {
     if (!pendingAsset) return
     const trimmed = placementNotes.trim()
     if (!trimmed) return
-    await handleAssetDrop(pendingAsset, trimmed)
+
+    const promise = handleAssetDrop(pendingAsset, trimmed)
     closeInstructionDialog()
+
+    toast.promise(promise, {
+      loading: `Queuing design update for ${pendingAsset.name}...`,
+      success: `Design update for ${pendingAsset.name} queued!`,
+      error: `Failed to queue design update for ${pendingAsset.name}.`,
+    });
+    
   }
 
   return (

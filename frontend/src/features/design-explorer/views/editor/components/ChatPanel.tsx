@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
 import type { ChatMessage } from "../../../lib/types"
+import { toast } from "sonner"
 
 interface ChatPanelProps {
   messages: ChatMessage[]
@@ -31,7 +32,14 @@ export function ChatPanel({ messages, onSend, isSending }: ChatPanelProps) {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     if (!input.trim()) return
-    await onSend(input)
+    
+    const promise = onSend(input);
+    toast.promise(promise, {
+      loading: "Queuing design change...",
+      success: "Design change queued!",
+      error: "Failed to queue design change.",
+    });
+    
     setInput("")
   }
 
