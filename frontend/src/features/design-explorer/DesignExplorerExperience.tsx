@@ -24,6 +24,7 @@ export function DesignExplorerExperience() {
     assets,
     handleAssetDrop,
     addAsset,
+    updateAsset,
     chatHistory,
     sendChatMessage,
     isChatSubmitting,
@@ -74,6 +75,7 @@ export function DesignExplorerExperience() {
             onBack={backToGallery}
             onAssetDrop={handleAssetDrop}
             onUploadAsset={addAsset}
+            onUpdateAsset={updateAsset}
             chatHistory={chatHistory}
             onSendChat={sendChatMessage}
             isChatSubmitting={isChatSubmitting}

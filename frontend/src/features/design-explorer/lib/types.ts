@@ -17,7 +17,8 @@ export type AssetItem = {
 
 export type ChatMessage = {
   id: string
-  role: "user" | "assistant"
+  role: "user" | "assistant" | "asset"
   content: string
   createdAt: Date
+  assetName?: string
 }

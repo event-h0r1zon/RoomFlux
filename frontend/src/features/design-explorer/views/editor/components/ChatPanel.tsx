@@ -35,12 +35,16 @@ export function ChatPanel({ messages, onSend, isSending }: ChatPanelProps) {
     setInput("")
   }
 
+  const instructionMessages = messages.filter(
+    (message) => message.role !== "assistant"
+  )
+
   return (
     <Card className="flex h-full flex-col">
       <CardHeader className="py-4">
-        <CardTitle className="text-base">Design Assistant Chat</CardTitle>
+        <CardTitle className="text-base">Design Assistant</CardTitle>
         <CardDescription>
-          Describe changes in natural language and we will queue them for
+          Describe changes in natural language and they will be queued for
           generation.
         </CardDescription>
       </CardHeader>
@@ -48,39 +52,46 @@ export function ChatPanel({ messages, onSend, isSending }: ChatPanelProps) {
       <CardContent className="flex-1 overflow-hidden px-0 pb-0 pt-4">
         <ScrollArea className="h-48 px-6">
           <div className="space-y-4">
-            {messages.length === 0 && (
+            {instructionMessages.length === 0 && (
               <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
                 <MessageSquareText className="size-4" />
-                No chat history yet.
+                No design directions yet.
               </div>
             )}
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={cn(
-                  "flex gap-3 text-sm",
-                  message.role === "user" && "flex-row-reverse text-right"
-                )}
-              >
-                <Avatar className="size-8">
-                  <AvatarFallback>
-                    {message.role === "user" ? "You" : "AI"}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium">
-                    {message.role === "user" ? "You" : "Design AI"}
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    {message.createdAt.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                  <p className="mt-1 leading-relaxed">{message.content}</p>
+            {instructionMessages.map((message) => {
+              const isAsset = message.role === "asset"
+              return (
+                <div
+                  key={message.id}
+                  className={cn(
+                    "flex gap-3 text-sm",
+                    message.role === "user" && "flex-row-reverse text-right"
+                  )}
+                >
+                  <Avatar className="size-8">
+                    <AvatarFallback>
+                      {isAsset ? "A" : "You"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-medium">
+                      {isAsset ? message.assetName ?? "Asset" : "You"}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {message.createdAt.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                    <p className="mt-1 leading-relaxed">
+                      {isAsset
+                        ? `Placement note: ${message.content}`
+                        : message.content}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </ScrollArea>
       </CardContent>
@@ -96,7 +107,7 @@ export function ChatPanel({ messages, onSend, isSending }: ChatPanelProps) {
           <div className="flex items-center justify-end">
             <Button type="submit" disabled={isSending}>
               <Send className="mr-2 size-4" />
-              {isSending ? "Sending" : "Send"}
+              {isSending ? "Queueing" : "Queue design change"}
             </Button>
           </div>
         </form>
