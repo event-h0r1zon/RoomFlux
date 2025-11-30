@@ -222,3 +222,29 @@ export async function fetchSessions(limit = 5): Promise<{ sessions: SessionRecor
   const response = await fetch(`${API_BASE_URL}/sessions?limit=${limit}`)
   return withJson<{ sessions: SessionRecord[] }>(response)
 }
+
+type DeleteViewResponse = {
+  status: string
+  view_id: string
+}
+
+export async function deleteView(viewId: string): Promise<DeleteViewResponse> {
+  const response = await fetch(`${API_BASE_URL}/views/${viewId}`, {
+    method: "DELETE",
+  })
+
+  return withJson<DeleteViewResponse>(response)
+}
+
+type DeleteSessionResponse = {
+  status: string
+  session_id: string
+}
+
+export async function deleteSession(sessionId: string): Promise<DeleteSessionResponse> {
+  const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}`, {
+    method: "DELETE",
+  })
+
+  return withJson<DeleteSessionResponse>(response)
+}

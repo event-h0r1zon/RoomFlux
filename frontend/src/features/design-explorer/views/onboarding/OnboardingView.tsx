@@ -1,6 +1,10 @@
+import { useState } from "react"
+
 import {
   Link2,
   LoaderCircle,
+  Play,
+  Trash2,
   // Sparkles
 } from "lucide-react"
 
@@ -20,6 +24,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useDesignExplorer } from "../../context/DesignExplorerContext"
@@ -34,7 +45,58 @@ export function OnboardingView() {
     savedSessions,
     isSessionsLoading,
     resumeSession,
+    deleteSession,
   } = useDesignExplorer()
+
+  const [sessionToDelete, setSessionToDelete] = useState<{ id: string; label: string } | null>(null)
+  const [isDeletingSession, setIsDeletingSession] = useState(false)
+
+  const formatSessionLabel = (workDate?: string | null) => {
+    if (!workDate) {
+      return "Recent workspace"
+    }
+    const date = new Date(workDate)
+    if (Number.isNaN(date.getTime())) {
+      return "Recent workspace"
+    }
+    const dayLabel = new Intl.DateTimeFormat(undefined, {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    }).format(date)
+    const timeLabel = new Intl.DateTimeFormat(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date)
+    return `${timeLabel} · ${dayLabel}`
+  }
+
+  const formatSessionMeta = (sessionId: string, viewCount: number) => {
+    const viewLabel = viewCount === 1 ? "view" : "views"
+    return `${viewCount} ${viewLabel} saved · #${sessionId.slice(0, 6)}`
+  }
+
+  const openDeleteDialog = (sessionId: string, label: string) => {
+    setSessionToDelete({ id: sessionId, label })
+  }
+
+  const closeDeleteDialog = () => {
+    if (isDeletingSession) return
+    setSessionToDelete(null)
+  }
+
+  const handleDeleteSession = async () => {
+    if (!sessionToDelete) return
+    setIsDeletingSession(true)
+    try {
+      await deleteSession(sessionToDelete.id)
+      setSessionToDelete(null)
+    } catch (error) {
+      console.error("Failed to delete session", error)
+    } finally {
+      setIsDeletingSession(false)
+    }
+  }
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center">
@@ -89,19 +151,40 @@ export function OnboardingView() {
                 {savedSessions.map((session) => (
                   <AccordionItem value={session.id} key={session.id}>
                     <AccordionTrigger className="text-left">
-                      <div>
-                        <p className="font-medium pl-2">
-                          Session #{session.id.substring(0, 6)}
+                      <div className="pl-2">
+                        <p className="font-medium">
+                          {formatSessionLabel(session.workDate)}
                         </p>
-                        {session.workDate && (
-                          <p className="text-xs text-muted-foreground pl-2">
-                            {new Date(session.workDate).toLocaleString()}
-                          </p>
-                        )}
+                        <p className="text-xs text-muted-foreground">
+                          {formatSessionMeta(session.id, session.views.length)}
+                        </p>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
                       <div className="space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-background/80 p-3">
+                          <div>
+                            <p className="text-sm font-medium">Workspace actions</p>
+                            <p className="text-xs text-muted-foreground">
+                              Resume where you left off or remove this session entirely.
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" onClick={() => resumeSession(session.id)}>
+                              <Play className="mr-2 size-4" /> Resume session
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="text-destructive"
+                              onClick={() =>
+                                openDeleteDialog(session.id, formatSessionLabel(session.workDate))
+                              }
+                            >
+                              <Trash2 className="mr-2 size-4" /> Delete session
+                            </Button>
+                          </div>
+                        </div>
                         {session.views.length === 0 && (
                           <p className="text-sm text-muted-foreground">
                             No views saved for this session yet.
@@ -135,16 +218,16 @@ export function OnboardingView() {
                                 </p>
                               </div>
                             </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => resumeSession(session.id, view.id)}
+                            >
+                              <Play className="mr-2 size-4" /> Resume
+                            </Button>
                           </div>
                         ))}
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="w-full"
-                          onClick={() => resumeSession(session.id)}
-                        >
-                          Resume this session
-                        </Button>
                       </div>
                     </AccordionContent>
                   </AccordionItem>
@@ -174,6 +257,39 @@ export function OnboardingView() {
           </Button>
         </CardFooter>
       </Card>
+
+      <Dialog
+        open={Boolean(sessionToDelete)}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeDeleteDialog()
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete session</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {sessionToDelete
+              ? `Remove "${sessionToDelete.label}" and all associated views? This cannot be undone.`
+              : "Remove this saved session?"}
+          </p>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={closeDeleteDialog} disabled={isDeletingSession}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isDeletingSession}
+              onClick={handleDeleteSession}
+            >
+              {isDeletingSession ? "Deleting" : "Delete session"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

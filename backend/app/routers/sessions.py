@@ -109,6 +109,17 @@ async def list_sessions(limit: int = 10):
   return {"sessions": sessions}
 
 
+@router.delete("/sessions/{session_id}")
+async def delete_session(session_id: str):
+  try:
+    supabase_service.delete_session(session_id)
+    return {"status": "success", "session_id": session_id}
+  except ValueError as exc:
+    raise HTTPException(status_code=404, detail=str(exc))
+  except Exception as exc:  # pragma: no cover - defensive
+    raise HTTPException(status_code=500, detail=str(exc))
+
+
 @router.post("/views/{view_id}/chat")
 async def append_chat(view_id: str, payload: ChatEntryPayload):
   entry = {
@@ -173,3 +184,12 @@ async def delete_asset(view_id: str, asset_id: str):
 
   supabase_service.delete_asset_record(asset_id)
   return {"status": "success", "asset_id": asset_id}
+
+
+@router.delete("/views/{view_id}")
+async def delete_view(view_id: str):
+  try:
+    supabase_service.delete_view(view_id)
+    return {"status": "success", "view_id": view_id}
+  except Exception as exc:
+    raise HTTPException(status_code=500, detail=str(exc))
