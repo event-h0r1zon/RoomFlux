@@ -4,5 +4,3 @@ __pycache__/
 *.pyc
 .env
 .DS_Store
-agent_setup.md
-prompt.md
