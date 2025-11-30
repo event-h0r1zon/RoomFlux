@@ -22,29 +22,20 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { SavedSession } from "../../lib/types"
+import { useDesignExplorer } from "../../context/DesignExplorerContext"
 
-interface OnboardingViewProps {
-  propertyUrl: string
-  status: string | null
-  isScraping: boolean
-  onPropertyUrlChange: (value: string) => void
-  onStart: () => void
-  previousSessions: SavedSession[]
-  isLoadingSessions: boolean
-  onResumeSession: (sessionId: string) => void
-}
+export function OnboardingView() {
+  const {
+    propertyUrl,
+    status,
+    isScraping,
+    setPropertyUrl,
+    startScrape,
+    savedSessions,
+    isSessionsLoading,
+    resumeSession,
+  } = useDesignExplorer()
 
-export function OnboardingView({
-  propertyUrl,
-  status,
-  isScraping,
-  onPropertyUrlChange,
-  onStart,
-  previousSessions,
-  isLoadingSessions,
-  onResumeSession,
-}: OnboardingViewProps) {
   return (
     <div className="flex min-h-[70vh] items-center justify-center">
       <Card className="w-full max-w-2xl">
@@ -67,7 +58,7 @@ export function OnboardingView({
                 id="property-url"
                 placeholder="https://www.immoscout24.de/expose/..."
                 value={propertyUrl}
-                onChange={(event) => onPropertyUrlChange(event.target.value)}
+                onChange={(event) => setPropertyUrl(event.target.value)}
                 className="pr-12"
               />
               <Link2 className="text-muted-foreground absolute right-3 top-1/2 size-4 -translate-y-1/2" />
@@ -80,11 +71,11 @@ export function OnboardingView({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-base">Previously used sessions</Label>
-              {isLoadingSessions && (
+              {isSessionsLoading && (
                 <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
               )}
             </div>
-            {previousSessions.length === 0 ? (
+            {savedSessions.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Once you begin iterating, your recent sessions will appear here for
                 quick access.
@@ -95,7 +86,7 @@ export function OnboardingView({
                 collapsible
                 className="rounded-2xl border bg-muted/40 px-2"
               >
-                {previousSessions.map((session) => (
+                {savedSessions.map((session) => (
                   <AccordionItem value={session.id} key={session.id}>
                     <AccordionTrigger className="text-left">
                       <div>
@@ -150,7 +141,7 @@ export function OnboardingView({
                           type="button"
                           variant="secondary"
                           className="w-full"
-                          onClick={() => onResumeSession(session.id)}
+                          onClick={() => resumeSession(session.id)}
                         >
                           Resume this session
                         </Button>
@@ -166,12 +157,12 @@ export function OnboardingView({
         <CardFooter className="justify-end gap-3">
           <Button
             variant="ghost"
-            onClick={() => onPropertyUrlChange("")}
+            onClick={() => setPropertyUrl("")}
             disabled={isScraping}
           >
             Clear
           </Button>
-          <Button onClick={onStart} disabled={isScraping}>
+          <Button onClick={startScrape} disabled={isScraping}>
             {isScraping ? (
               <span className="flex items-center gap-2">
                 <LoaderCircle className="size-4 animate-spin" />

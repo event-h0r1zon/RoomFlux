@@ -3,36 +3,13 @@
 // import { Badge } from "@/components/ui/badge"
 // import { Card } from "@/components/ui/card"
 
-import { useDesignExplorerSession } from "./sessions/useDesignExplorerSession"
+import { DesignExplorerProvider, useDesignExplorer } from "./context/DesignExplorerContext"
 import { EditorView } from "./views/editor/EditorView"
 import { GalleryView } from "./views/gallery/GalleryView"
 import { OnboardingView } from "./views/onboarding/OnboardingView"
 
-export function DesignExplorerExperience() {
-  const {
-    view,
-    propertyUrl,
-    setPropertyUrl,
-    startScrape,
-    isScraping,
-    status,
-    images,
-    selectImage,
-    selectedImage,
-    backToGallery,
-    resetExperience,
-    assets,
-    handleAssetDrop,
-    addAsset,
-    updateAsset,
-    chatHistory,
-    sendChatMessage,
-    isChatSubmitting,
-    timeline,
-    savedSessions,
-    isSessionsLoading,
-    resumeSession,
-  } = useDesignExplorerSession()
+function ExperienceContent() {
+  const { view, selectedImage } = useDesignExplorer()
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/60">
@@ -53,42 +30,20 @@ export function DesignExplorerExperience() {
           </div>
         </Card> */}
 
-        {view === "onboarding" && (
-          <OnboardingView
-            propertyUrl={propertyUrl}
-            status={status}
-            isScraping={isScraping}
-            onPropertyUrlChange={(value) => setPropertyUrl(value)}
-            onStart={startScrape}
-            previousSessions={savedSessions}
-            isLoadingSessions={isSessionsLoading}
-            onResumeSession={resumeSession}
-          />
-        )}
+        {view === "onboarding" && <OnboardingView />}
 
-        {view === "gallery" && (
-          <GalleryView
-            images={images}
-            onSelect={selectImage}
-            onRestart={resetExperience}
-          />
-        )}
+        {view === "gallery" && <GalleryView />}
 
-        {view === "editor" && selectedImage && (
-          <EditorView
-            image={selectedImage}
-            assets={assets}
-            onBack={backToGallery}
-            onAssetDrop={handleAssetDrop}
-            onUploadAsset={addAsset}
-            onUpdateAsset={updateAsset}
-            chatHistory={chatHistory}
-            onSendChat={sendChatMessage}
-            isChatSubmitting={isChatSubmitting}
-            timeline={timeline}
-          />
-        )}
+        {view === "editor" && selectedImage && <EditorView />}
       </main>
     </div>
+  )
+}
+
+export function DesignExplorerExperience() {
+  return (
+    <DesignExplorerProvider>
+      <ExperienceContent />
+    </DesignExplorerProvider>
   )
 }

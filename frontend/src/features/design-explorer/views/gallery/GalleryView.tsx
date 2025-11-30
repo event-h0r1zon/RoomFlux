@@ -10,15 +10,10 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
-import type { ScrapedImage } from "../../lib/types"
+import { useDesignExplorer } from "../../context/DesignExplorerContext"
 
-interface GalleryViewProps {
-  images: ScrapedImage[]
-  onSelect: (image: ScrapedImage) => void
-  onRestart: () => void
-}
-
-export function GalleryView({ images, onSelect, onRestart }: GalleryViewProps) {
+export function GalleryView() {
+  const { images, selectImage, resetExperience } = useDesignExplorer()
   return (
     <section className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
@@ -28,7 +23,7 @@ export function GalleryView({ images, onSelect, onRestart }: GalleryViewProps) {
           </p>
           <h2 className="text-2xl font-semibold">Scraped references</h2>
         </div>
-        <Button variant="ghost" size="sm" onClick={onRestart}>
+        <Button variant="ghost" size="sm" onClick={resetExperience}>
           <ArrowLeft className="mr-2 size-4" /> Reset flow
         </Button>
       </header>
@@ -38,7 +33,7 @@ export function GalleryView({ images, onSelect, onRestart }: GalleryViewProps) {
           <Card
             key={image.id}
             className="group cursor-pointer overflow-hidden transition-colors hover:border-ring"
-            onClick={() => onSelect(image)}
+            onClick={() => selectImage(image)}
           >
             <div className="relative aspect-video overflow-hidden bg-muted">
               <img

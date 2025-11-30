@@ -23,44 +23,30 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
-import type {
-  AssetItem,
-  ChatMessage,
-  ScrapedImage,
-} from "../../lib/types"
+import type { AssetItem } from "../../lib/types"
+import { useDesignExplorer } from "../../context/DesignExplorerContext"
 import { AssetLibrary } from "./components/AssetLibrary.tsx"
 import { ChatPanel } from "./components/ChatPanel.tsx"
 
 const ASSET_TRANSFER_KEY = "design-explorer/asset"
 
-interface EditorViewProps {
-  image: ScrapedImage
-  assets: AssetItem[]
-  onBack: () => void
-  onAssetDrop: (asset: AssetItem, instructions: string) => Promise<void>
-  onUploadAsset: (input: { name: string; file: File }) => Promise<void>
-  onUpdateAsset: (
-    assetId: string,
-    updates: Partial<Omit<AssetItem, "id">>
-  ) => void
-  chatHistory: ChatMessage[]
-  onSendChat: (value: string) => Promise<void>
-  isChatSubmitting: boolean
-  timeline: string[]
-}
+export function EditorView() {
+  const {
+    selectedImage,
+    assets,
+    backToGallery,
+    handleAssetDrop,
+    addAsset,
+    updateAsset,
+    chatHistory,
+    sendChatMessage,
+    isChatSubmitting,
+  } = useDesignExplorer()
 
-export function EditorView({
-  image,
-  assets,
-  onBack,
-  onAssetDrop,
-  onUploadAsset,
-  onUpdateAsset,
-  chatHistory,
-  onSendChat,
-  isChatSubmitting,
-//   timeline,
-}: EditorViewProps) {
+  if (!selectedImage) {
+    return null
+  }
+
   const [isDragOver, setIsDragOver] = useState(false)
   const [instructionDialogOpen, setInstructionDialogOpen] = useState(false)
   const [pendingAsset, setPendingAsset] = useState<AssetItem | null>(null)
@@ -88,7 +74,7 @@ export function EditorView({
     if (!pendingAsset) return
     const trimmed = placementNotes.trim()
     if (!trimmed) return
-    await onAssetDrop(pendingAsset, trimmed)
+    await handleAssetDrop(pendingAsset, trimmed)
     closeInstructionDialog()
   }
 
@@ -101,7 +87,7 @@ export function EditorView({
           </p>
           <h2 className="text-2xl font-semibold">Design canvas</h2>
         </div>
-        <Button variant="ghost" size="sm" onClick={onBack}>
+        <Button variant="ghost" size="sm" onClick={backToGallery}>
           <ArrowLeft className="mr-2 size-4" /> Back to gallery
         </Button>
       </header>
@@ -123,9 +109,9 @@ export function EditorView({
         >
           <div className="flex h-full items-center justify-center overflow-hidden rounded-2xl bg-background shadow-inner">
             <img
-              key={image.id}
-              src={image.imageUrl}
-              alt={image.title}
+              key={selectedImage.id}
+              src={selectedImage.imageUrl}
+              alt={selectedImage.title}
               className="h-full max-h-[600px] w-full object-cover"
             />
           </div>
@@ -135,8 +121,8 @@ export function EditorView({
           <AssetLibrary
             assets={assets}
             dataTransferKey={ASSET_TRANSFER_KEY}
-            onUploadAsset={onUploadAsset}
-            onUpdateAsset={onUpdateAsset}
+            onUploadAsset={addAsset}
+            onUpdateAsset={updateAsset}
           />
 
           {/* <Card className="h-44">
@@ -166,7 +152,7 @@ export function EditorView({
 
           <ChatPanel
             messages={chatHistory}
-            onSend={onSendChat}
+            onSend={sendChatMessage}
             isSending={isChatSubmitting}
           />
         </div>
