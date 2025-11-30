@@ -519,6 +519,7 @@ export function useDesignExplorerSession() {
               viewId,
               sourceImageUrl,
               asset.imageUrl,
+              asset.name,
               trimmed
             )
             const nextUrl = generation.data?.url
@@ -532,6 +533,8 @@ export function useDesignExplorerSession() {
         }
       } catch (error) {
         console.error("Failed to append asset placement", error)
+      } finally {
+        setIsChatSubmitting(false)
       }
     },
     [captureTimeline, resolveViewId]

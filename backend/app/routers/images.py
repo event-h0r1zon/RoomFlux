@@ -164,6 +164,7 @@ class AddAssetRequest(BaseModel):
     view_id: str
     view_url: str
     asset_url: str
+    asset_name: str
     prompt: str
 
 @router.post("/add-asset-to-view")
@@ -173,7 +174,7 @@ async def add_asset_to_view(request: AddAssetRequest):
     """
     try:
         # 1. Call Flux API to start generation
-        initial_response = await flux_service.add_asset_to_view(request.prompt, request.view_url, request.asset_url)
+        initial_response = await flux_service.add_asset_to_view(request.prompt, request.view_url, request.asset_url, request.asset_name)
         polling_url = initial_response.get("polling_url")
         
         if not polling_url:

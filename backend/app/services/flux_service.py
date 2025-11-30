@@ -45,16 +45,21 @@ class FluxService:
                 print(f"An error occurred: {str(e)}")
                 raise e
 
-    async def add_asset_to_view(self, prompt: str, view_url: str, asset_url: str, **kwargs):
+    async def add_asset_to_view(self, prompt: str, view_url: str, asset_url: str, asset_name: str, **kwargs):
         """
         Call the Flux API to start image generation.
         Returns the polling URL and request ID.
         """
+
+        final_prompt = (
+            f"Extract the asset named '{asset_name}' from the second image and integrate it into the first image realistically according to the prompt: {prompt}"
+        )
+
         async with httpx.AsyncClient() as client:
             payload = {
-                "prompt": prompt,
+                "prompt": final_prompt,
                 "input_image": view_url,
-                "input_image2": asset_url,
+                "input_image_2": asset_url,
                 **kwargs
             }
             try:

@@ -82,6 +82,7 @@ export async function addAssetToView(
   viewId: string,
   viewUrl: string,
   assetUrl: string,
+  assetName: string,
   prompt: string
 ) {
 
@@ -92,6 +93,7 @@ export async function addAssetToView(
       view_id: viewId,
       view_url: viewUrl,
       asset_url: assetUrl,
+      asset_name: assetName,
       prompt: prompt,
     }),
   });
