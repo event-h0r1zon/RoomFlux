@@ -10,7 +10,6 @@ const withJson = async <T>(response: Response): Promise<T> => {
   }
   return response.json() as Promise<T>
 }
-
 export async function scrapeImmoscout(url: string): Promise<ScrapedImage[]> {
   console.info("[scrapeImmoscout] Scraping:", url)
 
@@ -153,6 +152,29 @@ export async function uploadAsset(
   return withJson<UploadAssetResponse>(response)
 }
 
+type DeleteAssetResponse = {
+  status: string
+  asset_id: string
+}
+
+export async function deleteAsset(viewId: string, assetId: string): Promise<DeleteAssetResponse> {
+  const response = await fetch(`${API_BASE_URL}/views/${viewId}/assets/${assetId}`, {
+    method: "DELETE",
+  })
+
+  return withJson<DeleteAssetResponse>(response)
+}
+
+type UpdateImageResponse = {
+  status: string
+  data: {
+    url: string
+    original_url: string
+    view_id: string
+    edited_images?: string[]
+  }
+}
+
 export async function updateViewImage(
   viewId: string,
   payload: { prompt: string; inputImage: string; referenceImage?: string }
@@ -169,6 +191,25 @@ export async function updateViewImage(
   })
 
   return withJson<UpdateImageResponse>(response)
+}
+
+type RevertImageResponse = {
+  status: string
+  data: {
+    view_id: string
+    edited_images?: string[]
+    chat_history?: Array<Record<string, unknown>>
+  }
+}
+
+export async function revertViewImage(viewId: string): Promise<RevertImageResponse> {
+  const response = await fetch(`${API_BASE_URL}/images/revert`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ view_id: viewId }),
+  })
+
+  return withJson<RevertImageResponse>(response)
 }
 
 type SessionViewRecord = {

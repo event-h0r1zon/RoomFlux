@@ -160,3 +160,16 @@ async def upload_asset(
     "public_url": public_url,
     "chat_entry": chat_entry,
   }
+
+
+@router.delete("/views/{view_id}/assets/{asset_id}")
+async def delete_asset(view_id: str, asset_id: str):
+  asset = supabase_service.get_asset_record(asset_id)
+  if not asset:
+    raise HTTPException(status_code=404, detail="Asset not found")
+
+  if asset.get("view_id") != view_id:
+    raise HTTPException(status_code=400, detail="Asset does not belong to the specified view")
+
+  supabase_service.delete_asset_record(asset_id)
+  return {"status": "success", "asset_id": asset_id}

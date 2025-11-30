@@ -90,11 +90,11 @@ export function OnboardingView() {
                   <AccordionItem value={session.id} key={session.id}>
                     <AccordionTrigger className="text-left">
                       <div>
-                        <p className="font-medium">
+                        <p className="font-medium pl-2">
                           Session #{session.id.substring(0, 6)}
                         </p>
                         {session.workDate && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground pl-2">
                             {new Date(session.workDate).toLocaleString()}
                           </p>
                         )}

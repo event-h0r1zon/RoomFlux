@@ -105,6 +105,20 @@ class SupabaseService:
         )
         return history
 
+    def remove_latest_chat_entry(self, view_id: str) -> List[Dict[str, Any]]:
+        history = self._fetch_chat_history(view_id)
+        if not history:
+            return history
+
+        history = history[:-1]
+        (
+            self.client.table("views")
+            .update({"chat_history": history})
+            .eq("id", view_id)
+            .execute()
+        )
+        return history
+
     def _fetch_edited_images(self, view_id: str) -> List[str]:
         response = (
             self.client.table("views")
@@ -127,6 +141,20 @@ class SupabaseService:
         )
         return images
 
+    def remove_latest_edited_image(self, view_id: str) -> List[str]:
+        images = self._fetch_edited_images(view_id)
+        if not images:
+            return images
+
+        images = images[:-1]
+        (
+            self.client.table("views")
+            .update({"edited_images": images})
+            .eq("id", view_id)
+            .execute()
+        )
+        return images
+
     def insert_asset_record(self, view_id: str, name: str, url: str) -> Dict[str, Any]:
         response = (
             self.client.table("asset_library")
@@ -139,6 +167,24 @@ class SupabaseService:
         if isinstance(data, dict):
             return data
         raise RuntimeError("Failed to insert asset record")
+
+    def get_asset_record(self, asset_id: str) -> Optional[Dict[str, Any]]:
+        response = (
+            self.client.table("asset_library")
+            .select("id, view_id, name, url")
+            .eq("id", asset_id)
+            .single()
+            .execute()
+        )
+        return response.data if response.data else None
+
+    def delete_asset_record(self, asset_id: str) -> None:
+        (
+            self.client.table("asset_library")
+            .delete()
+            .eq("id", asset_id)
+            .execute()
+        )
 
     def list_sessions(self, limit: int = 10) -> List[Dict[str, Any]]:
         response = (

@@ -16,6 +16,10 @@ class GenerateRequest(BaseModel):
     input_image_2: Optional[str] = None
     view_id: str
 
+
+class RevertRequest(BaseModel):
+    view_id: str
+
 class ListingUrl(BaseModel):
     url: str
 
@@ -67,6 +71,24 @@ async def update_image(request: GenerateRequest):
         import traceback
         print(f"Error during generation: {str(e)}")
         traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/revert")
+async def revert_latest_image(request: RevertRequest):
+    """Removes the most recent edited image for a view."""
+    try:
+        edited_images = supabase_service.remove_latest_edited_image(request.view_id)
+        chat_history = supabase_service.remove_latest_chat_entry(request.view_id)
+        return {
+            "status": "success",
+            "data": {
+                "view_id": request.view_id,
+                "edited_images": edited_images,
+                "chat_history": chat_history,
+            },
+        }
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/upload")
