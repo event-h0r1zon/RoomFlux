@@ -69,6 +69,37 @@ export async function createSession(request: {
   return withJson<CreateSessionResponse>(response)
 }
 
+type UpdateImageResponse = {
+  status: string
+  data: {
+    url: string
+    original_url: string
+    view_id: string
+    edited_images?: string[]
+  }
+}
+
+export async function addAssetToView(
+  viewId: string,
+  viewUrl: string,
+  assetUrl: string,
+  prompt: string
+) {
+
+  const response = await fetch(`${API_BASE_URL}/images/add-asset-to-view`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      view_id: viewId,
+      view_url: viewUrl,
+      asset_url: assetUrl,
+      prompt: prompt,
+    }),
+  });
+
+  return withJson<UpdateImageResponse>(response)
+}
+
 type AppendChatResponse = {
   view_id: string
   chat_history: Array<Record<string, unknown>>
@@ -120,16 +151,6 @@ export async function uploadAsset(
   })
 
   return withJson<UploadAssetResponse>(response)
-}
-
-type UpdateImageResponse = {
-  status: string
-  data: {
-    url: string
-    original_url: string
-    view_id: string
-    edited_images?: string[]
-  }
 }
 
 export async function updateViewImage(

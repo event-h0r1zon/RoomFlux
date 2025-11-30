@@ -45,6 +45,30 @@ class FluxService:
                 print(f"An error occurred: {str(e)}")
                 raise e
 
+    async def add_asset_to_view(self, prompt: str, view_url: str, asset_url: str, **kwargs):
+        """
+        Call the Flux API to start image generation.
+        Returns the polling URL and request ID.
+        """
+        async with httpx.AsyncClient() as client:
+            payload = {
+                "prompt": prompt,
+                "input_image": view_url,
+                "input_image2": asset_url,
+                **kwargs
+            }
+            try:
+                response = await client.post(self.base_url, json=payload, headers=self.headers, timeout=60.0)
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                print(f"Error calling Flux API: {e.response.text}")
+                raise e
+            except Exception as e:
+                print(f"An error occurred: {str(e)}")
+                raise e
+
+
     async def poll_result(self, polling_url: str, interval: float = 2.0, timeout: float = 60.0):
         """
         Polls the polling_url until the image is ready or timeout is reached.

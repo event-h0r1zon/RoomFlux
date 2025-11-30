@@ -8,6 +8,7 @@ import {
   scrapeImmoscout,
   uploadAsset as uploadAssetRequest,
   updateViewImage,
+  addAssetToView,
 } from "../lib/api"
 import type {
   AssetItem,
@@ -407,6 +408,9 @@ export function useDesignExplorerSession() {
     async (asset: AssetItem, instructions: string) => {
       const viewId = resolveViewId()
       if (!viewId || !instructions) return
+      const trimmed = instructions.trim()
+      if (!trimmed) return
+      setIsChatSubmitting(true)
 
       try {
         const response = await appendChat(viewId, {
@@ -420,6 +424,25 @@ export function useDesignExplorerSession() {
         captureTimeline(
           `${asset.name} queued · "${instructions.substring(0, 36)}"`
         )
+        const sourceImageUrl =
+          getActiveImageUrlForView(viewId) ?? selectedImage?.imageUrl ?? null
+        if (sourceImageUrl) {
+          try {
+            const generation = await addAssetToView(
+              viewId,
+              sourceImageUrl,
+              asset.imageUrl,
+              trimmed
+            )
+            const nextUrl = generation.data?.url
+            if (nextUrl) {
+              applyEditedImage(viewId, nextUrl, sourceImageUrl)
+              fetchSavedSessions()
+            }
+          } catch (imageError) {
+            console.error("Failed to update view image", imageError)
+          }
+        }
       } catch (error) {
         console.error("Failed to append asset placement", error)
       }
