@@ -122,6 +122,34 @@ export async function uploadAsset(
   return withJson<UploadAssetResponse>(response)
 }
 
+type UpdateImageResponse = {
+  status: string
+  data: {
+    url: string
+    original_url: string
+    view_id: string
+    edited_images?: string[]
+  }
+}
+
+export async function updateViewImage(
+  viewId: string,
+  payload: { prompt: string; inputImage: string; referenceImage?: string }
+): Promise<UpdateImageResponse> {
+  const response = await fetch(`${API_BASE_URL}/images/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      prompt: payload.prompt,
+      input_image: payload.inputImage,
+      input_image_2: payload.referenceImage,
+      view_id: viewId,
+    }),
+  })
+
+  return withJson<UpdateImageResponse>(response)
+}
+
 type SessionViewRecord = {
   id: string
   original_image?: string | null

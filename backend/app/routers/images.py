@@ -4,6 +4,7 @@ from app.services.supabase_service import supabase_service
 from app.services.scrape_service import scrape_service
 from app.services.image_store import upload_remote_image
 from pydantic import BaseModel
+from typing import Optional
 import uuid
 import httpx
 
@@ -11,18 +12,22 @@ router = APIRouter()
 
 class GenerateRequest(BaseModel):
     prompt: str
+    input_image: str
+    input_image_2: Optional[str] = None
+    view_id: str
 
 class ListingUrl(BaseModel):
     url: str
 
 @router.post("/generate")
-async def generate_image(request: GenerateRequest):
-    """
-    Generates an image using Flux API and optionally uploads it to Supabase.
-    """
+async def update_image(request: GenerateRequest):
+    """Updates an image via the Flux API and stores the result in Supabase."""
     try:
-        # 1. Call Flux API to start generation
-        initial_response = await flux_service.generate_image(request.prompt)
+        initial_response = await flux_service.update_image(
+            request.prompt,
+            input_image=request.input_image,
+            input_image_2=request.input_image_2,
+        )
         polling_url = initial_response.get("polling_url")
         
         if not polling_url:
@@ -46,8 +51,18 @@ async def generate_image(request: GenerateRequest):
             image_data, file_name, content_type=content_type, folder="generated"
         )
         public_url = supabase_service.get_public_url(stored_path)
+
+        edited_images = supabase_service.append_edited_image(request.view_id, public_url)
         
-        return {"status": "success", "data": {"url": public_url, "original_url": image_url}}
+        return {
+            "status": "success",
+            "data": {
+                "url": public_url,
+                "original_url": image_url,
+                "view_id": request.view_id,
+                "edited_images": edited_images,
+            },
+        }
     except Exception as e:
         import traceback
         print(f"Error during generation: {str(e)}")
