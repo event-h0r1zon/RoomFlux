@@ -7,6 +7,7 @@ import {
   fetchSessions,
   scrapeImmoscout,
   uploadAsset as uploadAssetRequest,
+  updateViewImage,
 } from "../lib/api"
 import type {
   AssetItem,
@@ -35,6 +36,11 @@ type SessionApiRecord = {
   id: string
   work_date?: string
   views?: SessionViewApiRecord[]
+}
+
+type ViewImageMeta = {
+  original: string | null
+  edited: string[]
 }
 
 const normalizeChatEntry = (entry: ChatEntryRecord): ChatMessage => {
@@ -86,6 +92,7 @@ export function useDesignExplorerSession() {
   const [viewLookup, setViewLookup] = useState<Record<string, string>>({})
   const [viewChats, setViewChats] = useState<Record<string, ChatMessage[]>>({})
   const [viewAssets, setViewAssets] = useState<Record<string, AssetItem[]>>({})
+  const [viewImages, setViewImages] = useState<Record<string, ViewImageMeta>>({})
   const [isChatSubmitting, setIsChatSubmitting] = useState(false)
   const [timeline, setTimeline] = useState<string[]>([])
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([])
@@ -102,7 +109,7 @@ export function useDesignExplorerSession() {
       return {
         id: viewRecord.id,
         originalImage: viewRecord.original_image ?? null,
-        editedImages: viewRecord.edited_images ?? [],
+        editedImages: [...(viewRecord.edited_images ?? [])],
         chatHistory: normalizeChatHistory(viewRecord.chat_history),
         assets,
       }
@@ -154,16 +161,23 @@ export function useDesignExplorerSession() {
       })
 
       const lookup: Record<string, string> = {}
+      const viewImageMap: Record<string, ViewImageMeta> = {}
       const enhancedImages = result.map((image, index) => {
         const viewRecord = session.views[index]
         if (viewRecord?.id) {
           lookup[image.id] = viewRecord.id
-          return { ...image, viewId: viewRecord.id }
+          const original = viewRecord.original_image ?? image.imageUrl
+          viewImageMap[viewRecord.id] = {
+            original,
+            edited: [],
+          }
+          return { ...image, viewId: viewRecord.id, imageUrl: original ?? image.imageUrl }
         }
         return image
       })
 
       setViewLookup(lookup)
+      setViewImages(viewImageMap)
       setImages(enhancedImages)
       setViewChats({})
       setViewAssets({})
@@ -192,6 +206,7 @@ export function useDesignExplorerSession() {
     setViewLookup({})
     setViewChats({})
     setViewAssets({})
+    setViewImages({})
     setImages(MOCK_SCRAPED_IMAGES)
     setTimeline([])
     setStatus(null)
@@ -206,19 +221,30 @@ export function useDesignExplorerSession() {
 
       const lookup: Record<string, string> = {}
       const reconstructed: ScrapedImage[] = []
+      const viewImageMap: Record<string, ViewImageMeta> = {}
 
       session.views.forEach((viewRecord, index) => {
         if (!viewRecord.originalImage) {
           return
         }
         const imageId = viewRecord.id || `${session.id}-view-${index}`
-        lookup[imageId] = viewRecord.id
+        if (viewRecord.id) {
+          lookup[imageId] = viewRecord.id
+          viewImageMap[viewRecord.id] = {
+            original: viewRecord.originalImage,
+            edited: [...viewRecord.editedImages],
+          }
+        }
+        const latestImage =
+          viewRecord.editedImages.length > 0
+            ? viewRecord.editedImages[viewRecord.editedImages.length - 1]
+            : viewRecord.originalImage
         reconstructed.push({
           id: imageId,
           title: `Session view ${index + 1}`,
           roomType: "Imported",
           description: "Loaded from saved session",
-          imageUrl: viewRecord.originalImage,
+          imageUrl: latestImage ?? viewRecord.originalImage,
           tags: ["saved"],
           viewId: viewRecord.id,
         })
@@ -242,6 +268,7 @@ export function useDesignExplorerSession() {
       setViewLookup(lookup)
       setViewChats(chatsMap)
       setViewAssets(assetsMap)
+      setViewImages(viewImageMap)
       setTimeline([])
       setView("gallery")
       setStatus(null)
@@ -257,6 +284,56 @@ export function useDesignExplorerSession() {
     if (!selectedImage) return null
     return selectedImage.viewId ?? viewLookup[selectedImage.id] ?? null
   }, [selectedImage, viewLookup])
+
+  const getLatestImageUrl = useCallback(
+    (targetViewId: string | null) => {
+      if (!targetViewId) return null
+      const entry = viewImages[targetViewId]
+      if (!entry) return null
+      const edits = entry.edited.filter(Boolean)
+      if (edits.length > 0) {
+        return edits[edits.length - 1]
+      }
+      return entry.original
+    },
+    [viewImages]
+  )
+
+  const applyEditedImage = useCallback(
+    (viewId: string, nextUrl: string, fallbackOriginal?: string | null) => {
+      setViewImages((prev) => {
+        const current = prev[viewId] ?? {
+          original: fallbackOriginal ?? null,
+          edited: [],
+        }
+        return {
+          ...prev,
+          [viewId]: {
+            original: current.original ?? fallbackOriginal ?? null,
+            edited: [...current.edited, nextUrl],
+          },
+        }
+      })
+
+      setImages((prev) =>
+        prev.map((image) => {
+          const imageViewId = image.viewId ?? viewLookup[image.id]
+          if (imageViewId === viewId) {
+            return { ...image, imageUrl: nextUrl }
+          }
+          return image
+        })
+      )
+
+      setSelectedImage((prev) => {
+        if (!prev) return prev
+        const prevViewId = prev.viewId ?? viewLookup[prev.id]
+        if (prevViewId !== viewId) return prev
+        return { ...prev, imageUrl: nextUrl }
+      })
+    },
+    [setImages, setSelectedImage, viewLookup]
+  )
 
   const handleAssetDrop = useCallback(
     async (asset: AssetItem, instructions: string) => {
@@ -361,16 +438,44 @@ export function useDesignExplorerSession() {
         const history = normalizeChatHistory(response.chat_history)
         setViewChats((prev) => ({ ...prev, [viewId]: history }))
         captureTimeline(`Prompt sent · "${trimmed.substring(0, 36)}"`)
+
+        const sourceImageUrl =
+          getLatestImageUrl(viewId) ?? selectedImage?.imageUrl ?? null
+        if (sourceImageUrl) {
+          try {
+            const generation = await updateViewImage(viewId, {
+              prompt: trimmed,
+              inputImage: sourceImageUrl,
+            })
+            const nextUrl = generation.data?.url
+            if (nextUrl) {
+              applyEditedImage(viewId, nextUrl, sourceImageUrl)
+              fetchSavedSessions()
+            }
+          } catch (imageError) {
+            console.error("Failed to update view image", imageError)
+          }
+        }
       } catch (error) {
         console.error("Failed to append chat", error)
       } finally {
         setIsChatSubmitting(false)
       }
     },
-    [captureTimeline, resolveViewId]
+    [
+      captureTimeline,
+      resolveViewId,
+      getLatestImageUrl,
+      selectedImage,
+      applyEditedImage,
+      fetchSavedSessions,
+    ]
   )
 
   const activeViewId = resolveViewId()
+  const activeImageUrl = activeViewId
+    ? getLatestImageUrl(activeViewId) ?? selectedImage?.imageUrl ?? null
+    : null
 
   const assets = useMemo(
     () => (activeViewId ? viewAssets[activeViewId] ?? [] : []),
@@ -405,5 +510,6 @@ export function useDesignExplorerSession() {
     savedSessions,
     isSessionsLoading,
     resumeSession,
+    activeImageUrl,
   }
 }

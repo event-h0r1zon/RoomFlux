@@ -105,6 +105,28 @@ class SupabaseService:
         )
         return history
 
+    def _fetch_edited_images(self, view_id: str) -> List[str]:
+        response = (
+            self.client.table("views")
+            .select("edited_images")
+            .eq("id", view_id)
+            .single()
+            .execute()
+        )
+        data = response.data.get("edited_images") or []
+        return data
+
+    def append_edited_image(self, view_id: str, image_url: str) -> List[str]:
+        images = self._fetch_edited_images(view_id)
+        images.append(image_url)
+        (
+            self.client.table("views")
+            .update({"edited_images": images})
+            .eq("id", view_id)
+            .execute()
+        )
+        return images
+
     def insert_asset_record(self, view_id: str, name: str, url: str) -> Dict[str, Any]:
         response = (
             self.client.table("asset_library")
