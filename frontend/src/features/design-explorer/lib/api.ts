@@ -165,16 +165,6 @@ export async function deleteAsset(viewId: string, assetId: string): Promise<Dele
   return withJson<DeleteAssetResponse>(response)
 }
 
-type UpdateImageResponse = {
-  status: string
-  data: {
-    url: string
-    original_url: string
-    view_id: string
-    edited_images?: string[]
-  }
-}
-
 export async function updateViewImage(
   viewId: string,
   payload: { prompt: string; inputImage: string; referenceImage?: string }

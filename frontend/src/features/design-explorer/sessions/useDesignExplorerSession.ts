@@ -10,6 +10,7 @@ import {
   updateViewImage,
   revertViewImage,
   deleteAsset as deleteAssetRequest,
+  addAssetToView,
 } from "../lib/api"
 import type {
   AssetItem,
