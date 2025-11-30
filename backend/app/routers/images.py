@@ -1,6 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.flux_service import flux_service
 from app.services.supabase_service import supabase_service
+from app.services.scrape_service import scrape_service
 from pydantic import BaseModel
 import uuid
 import httpx
@@ -9,6 +10,9 @@ router = APIRouter()
 
 class GenerateRequest(BaseModel):
     prompt: str
+
+class ListingUrl(BaseModel):
+    url: str
 
 @router.post("/generate")
 async def generate_image(request: GenerateRequest):
@@ -72,5 +76,24 @@ async def list_images():
     try:
         files = supabase_service.list_images()
         return files
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/scrape")
+async def scrape_listing(listing: ListingUrl):
+    """
+    Scrapes an image from a given listing URL and uploads it to Supabase.
+    """
+
+    try:
+        scraped_items = await scrape_service.scrape_listing(listing.url)
+        if not scraped_items:
+            raise HTTPException(status_code=404, detail="No items scraped from the provided URL")
+
+        image_urls = scrape_service.get_image_urls(scraped_items)
+
+        return {"status": "success", "data": image_urls}
+
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
