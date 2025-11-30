@@ -32,6 +32,7 @@ export function DesignExplorerExperience() {
     savedSessions,
     isSessionsLoading,
     resumeSession,
+    activeImageUrl,
   } = useDesignExplorerSession()
 
   return (
@@ -86,6 +87,7 @@ export function DesignExplorerExperience() {
             onSendChat={sendChatMessage}
             isChatSubmitting={isChatSubmitting}
             timeline={timeline}
+            currentImageUrl={activeImageUrl ?? undefined}
           />
         )}
       </main>

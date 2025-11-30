@@ -12,19 +12,30 @@ class FluxService:
             "accept": "application/json"
         }
 
-    async def generate_image(self, prompt: str, aspect_ratio: str = "1:1", **kwargs):
-        """
-        Call the Flux API to start image generation.
-        Returns the polling URL and request ID.
-        """
+    async def update_image(
+        self,
+        prompt: str,
+        *,
+        input_image: str,
+        aspect_ratio: str = "1:1",
+        **kwargs,
+    ):
+        """Call the Flux API to update an existing image using its URL."""
+
         async with httpx.AsyncClient() as client:
             payload = {
                 "prompt": prompt,
+                "input_image": input_image,
                 "aspect_ratio": aspect_ratio,
-                **kwargs
+                **kwargs,
             }
             try:
-                response = await client.post(self.base_url, json=payload, headers=self.headers, timeout=60.0)
+                response = await client.post(
+                    self.base_url,
+                    json=payload,
+                    headers=self.headers,
+                    timeout=60.0,
+                )
                 response.raise_for_status()
                 return response.json()
             except httpx.HTTPStatusError as e:

@@ -36,6 +36,7 @@ const ASSET_TRANSFER_KEY = "design-explorer/asset"
 interface EditorViewProps {
   image: ScrapedImage
   assets: AssetItem[]
+  currentImageUrl?: string | null
   onBack: () => void
   onAssetDrop: (asset: AssetItem, instructions: string) => Promise<void>
   onUploadAsset: (input: { name: string; file: File }) => Promise<void>
@@ -52,6 +53,7 @@ interface EditorViewProps {
 export function EditorView({
   image,
   assets,
+  currentImageUrl,
   onBack,
   onAssetDrop,
   onUploadAsset,
@@ -124,7 +126,7 @@ export function EditorView({
           <div className="flex h-full items-center justify-center overflow-hidden rounded-2xl bg-background shadow-inner">
             <img
               key={image.id}
-              src={image.imageUrl}
+              src={currentImageUrl ?? image.imageUrl}
               alt={image.title}
               className="h-full max-h-[600px] w-full object-cover"
             />
