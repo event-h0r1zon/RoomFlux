@@ -3,7 +3,7 @@ from app.core.config import settings
 from apify_client import ApifyClient
 
 class ScrapeService:
-    def init(self):
+    def __init__(self):
         self.api_key = settings.APIFY_CLIENT_TOKEN
         self.client = ApifyClient(self.api_key)
         self.actor_id = settings.APIFY_ACTOR_ID

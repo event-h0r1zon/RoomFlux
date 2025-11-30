@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_KEY: str
 
+    APIFY_CLIENT_TOKEN: str
+    APIFY_ACTOR_ID: str = "nMiNd0glV6oqKv78Y"
+
     class Config:
         env_file = ".env"
 
